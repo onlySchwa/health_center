@@ -21,7 +21,7 @@ export type DashboardAppointment = {
 
 const panel = "rounded-[20px] border border-baan-line bg-white";
 
-type Profile = { firstName: string; fullName: string; email: string; phone: string };
+type Profile = { firstName: string; lastName: string; fullName: string; email: string; phone: string };
 
 type ResidentDashboardProps = {
   profile: Profile;
@@ -229,7 +229,9 @@ export function ResidentDashboard({ profile, appointments, loadFailed, isStaff, 
 
       {/* Book from dashboard */}
       <section id="book-new" aria-label="Book a new appointment" className="scroll-mt-6 flex flex-wrap rounded-[20px] bg-baan-navy p-6 sm:p-10">
-        <BookingForm defaults={{ name: profile.fullName, phone: profile.phone }} />
+        <BookingForm
+          defaults={{ firstName: profile.firstName, lastName: profile.lastName, email: profile.email, phone: profile.phone }}
+        />
       </section>
     </div>
   );

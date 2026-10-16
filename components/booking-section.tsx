@@ -5,7 +5,7 @@ import { eyebrow } from "@/lib/styles";
 const steps = [
   { title: "Choose a service", desc: "Check-up, bakuna, prenatal, and more." },
   { title: "Pick a day and time", desc: "Morning or afternoon — whatever fits your day." },
-  { title: "Get a confirmation text", desc: "Show it at the front desk when you arrive." },
+  { title: "Get a confirmation email", desc: "Show it at the front desk when you arrive." },
 ];
 
 export function BookingSection() {

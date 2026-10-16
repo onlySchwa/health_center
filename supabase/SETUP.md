@@ -26,7 +26,8 @@ and every query fails with "permission denied for table appointments".
 ## 3. Create the table and rules
 
 **Supabase Dashboard → SQL Editor → New query**, paste all of `migrations/0001_appointments.sql`, and run it once.
-Then do the same with `migrations/0002_remove_bp_and_medicine_services.sql`, then `migrations/0003_admin.sql`, then `migrations/0004_rejected_status.sql`, then `migrations/0005_admin_manage.sql`.
+Then do the same with `migrations/0002_remove_bp_and_medicine_services.sql`, then `migrations/0003_admin.sql`, then `migrations/0004_rejected_status.sql`, then `migrations/0005_admin_manage.sql`,
+then `migrations/0006_booking_contact_fields.sql`, then `migrations/0007_confirmation_emails.sql`, then `migrations/0008_status_emails.sql`.
 
 ## 4. Make a staff account
 

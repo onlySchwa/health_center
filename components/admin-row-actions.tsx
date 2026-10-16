@@ -7,8 +7,11 @@ import { services, statusStyle, timeSlots, type Status } from "@/lib/appointment
 type Appointment = {
   id: number;
   ref: string;
-  resident_name: string;
-  phone: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
   service: string;
   appt_date: string;
   time_slot: string;
@@ -121,13 +124,27 @@ export function AdminRowActions({ appointment: a }: { appointment: Appointment }
           <h2 id={`edit-${a.id}-h`} className="font-display text-2xl font-bold text-baan-navy">
             Edit {a.ref}
           </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 font-semibold">
+              First name
+              <input name="firstName" required maxLength={50} defaultValue={a.first_name} className={field} />
+            </label>
+            <label className="flex flex-col gap-1 font-semibold">
+              Last name
+              <input name="lastName" required maxLength={50} defaultValue={a.last_name} className={field} />
+            </label>
+            <label className="flex flex-col gap-1 font-semibold">
+              Email
+              <input name="email" type="email" maxLength={254} defaultValue={a.email ?? ""} className={field} />
+            </label>
+            <label className="flex flex-col gap-1 font-semibold">
+              Mobile number
+              <input name="phone" pattern="[0-9+ \-]{7,20}" defaultValue={a.phone ?? ""} className={field} />
+            </label>
+          </div>
           <label className="flex flex-col gap-1 font-semibold">
-            Resident name
-            <input name="name" required minLength={2} maxLength={100} defaultValue={a.resident_name} className={field} />
-          </label>
-          <label className="flex flex-col gap-1 font-semibold">
-            Mobile number
-            <input name="phone" required pattern="[0-9+ \-]{7,20}" defaultValue={a.phone} className={field} />
+            Address
+            <input name="address" minLength={5} maxLength={200} defaultValue={a.address ?? ""} className={field} />
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1 font-semibold">

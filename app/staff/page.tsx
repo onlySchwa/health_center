@@ -178,9 +178,17 @@ async function StaffContent({ searchParams }: { searchParams: PageProps<"/staff"
                       <td className="px-4 py-4 font-semibold whitespace-nowrap text-baan-muted">{a.ref}</td>
                       <td className="px-4 py-4">
                         <div className="font-semibold text-baan-navy">{a.resident_name}</div>
-                        <a href={`tel:${a.phone}`} className="text-baan-teal hover:underline">
-                          {a.phone}
-                        </a>
+                        {a.email && (
+                          <a href={`mailto:${a.email}`} className="block break-all text-baan-teal hover:underline">
+                            {a.email}
+                          </a>
+                        )}
+                        {a.phone && (
+                          <a href={`tel:${a.phone}`} className="block text-baan-teal hover:underline">
+                            {a.phone}
+                          </a>
+                        )}
+                        {a.address && <div className="max-w-60 text-sm break-words text-baan-muted">{a.address}</div>}
                       </td>
                       <td className="px-4 py-4">{a.service}</td>
                       <td className="px-4 py-4">

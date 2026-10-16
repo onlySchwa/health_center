@@ -58,6 +58,7 @@ async function DashboardContent() {
       isAdmin={admin}
       profile={{
         firstName: user?.firstName ?? "",
+        lastName: user?.lastName ?? "",
         fullName: user?.fullName ?? "",
         email: user?.primaryEmailAddress?.emailAddress ?? "",
         phone: user?.primaryPhoneNumber?.phoneNumber ?? "",
