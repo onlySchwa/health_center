@@ -26,25 +26,44 @@ export async function getAdminCounts() {
   const base = () =>
     createSupabase().from("appointments").select("id", { count: "exact", head: true }).is("archived_at", null);
 
-  const [residents, todayResult, pendingResult] = await Promise.all([
+  const [residents, todayResult, pendingResult, unsentResult] = await Promise.all([
     countResidents(),
     base().eq("appt_date", today).not("status", "in", "(cancelled,rejected)"),
     base().eq("status", "pending"),
+    // Upcoming confirmed/rejected appointments whose email to the resident didn't go out.
+    base().in("status", ["confirmed", "rejected"]).gte("appt_date", today).in("email_status", ["failed", "no_email"]),
   ]);
-  const failed = [todayResult, pendingResult].find((r) => r.error);
+  const failed = [todayResult, pendingResult, unsentResult].find((r) => r.error);
   if (failed?.error) throw new Error(`Could not load counts: ${failed.error.message}`);
 
-  return { residents, today: todayResult.count ?? 0, pending: pendingResult.count ?? 0 };
+  return {
+    residents,
+    today: todayResult.count ?? 0,
+    pending: pendingResult.count ?? 0,
+    unsentEmails: unsentResult.count ?? 0,
+  };
 }
 
-export type AdminAppointment = StaffAppointment & { updated_at: string; archived_at: string | null };
+export type AdminAppointment = StaffAppointment & {
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  address: string | null;
+  email_for: "confirmed" | "rejected" | null;
+  email_status: "sent" | "failed" | "no_email" | null;
+  email_error: string | null;
+  updated_at: string;
+  archived_at: string | null;
+};
 
 // "pending" = requests waiting for review; "history" = every appointment, newest first;
 // "archived" = appointments an admin has hidden from everyone else.
 export async function getAdminAppointments(tab: "pending" | "history" | "archived", search: string) {
   let query = createSupabase()
     .from("appointments")
-    .select("id, ref, resident_name, phone, service, appt_date, time_slot, note, status, updated_at, archived_at");
+    .select(
+      "id, ref, resident_name, first_name, last_name, email, phone, address, service, appt_date, time_slot, note, status, email_for, email_status, email_error, updated_at, archived_at",
+    );
 
   query = tab === "archived" ? query.not("archived_at", "is", null) : query.is("archived_at", null);
   if (tab === "pending") query = query.eq("status", "pending");

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { AdminActions } from "@/components/admin-actions";
+import { AdminActions, RetryEmailButton } from "@/components/admin-actions";
 import { AdminRowActions } from "@/components/admin-row-actions";
 import {
   getActivityLog,
@@ -152,6 +152,18 @@ async function AdminContent({ searchParams }: { searchParams: PageProps<"/admin"
           </form>
         )}
 
+        {(counts?.unsentEmails ?? 0) > 0 && (
+          <p role="status" className="rounded-xl bg-[#FFF1E8] px-5 py-4 font-semibold text-[#9E3E14]">
+            {counts!.unsentEmails} upcoming confirmed or rejected{" "}
+            {counts!.unsentEmails === 1 ? "request hasn't" : "requests haven't"} been emailed to the resident.
+            They&apos;re marked &ldquo;Email not sent&rdquo; under{" "}
+            <Link href="/admin?tab=history" className="underline">
+              All appointments
+            </Link>
+            .
+          </p>
+        )}
+
         {errors.length > 0 && (
           <p role="alert" className="rounded-xl bg-[#FFF1E8] px-5 py-4 text-center font-semibold text-[#9E3E14]">
             Some data couldn&apos;t be loaded. Please try again in a few minutes.
@@ -200,9 +212,17 @@ function AppointmentTable({ rows, tab, today, q }: { rows: AdminAppointment[]; t
                   <td className={`${td} font-semibold whitespace-nowrap text-baan-muted`}>{a.ref}</td>
                   <td className={td}>
                     <div className="font-semibold text-baan-navy">{a.resident_name}</div>
-                    <a href={`tel:${a.phone}`} className="text-baan-teal hover:underline">
-                      {a.phone}
-                    </a>
+                    {a.email && (
+                      <a href={`mailto:${a.email}`} className="block break-all text-baan-teal hover:underline">
+                        {a.email}
+                      </a>
+                    )}
+                    {a.phone && (
+                      <a href={`tel:${a.phone}`} className="block text-baan-teal hover:underline">
+                        {a.phone}
+                      </a>
+                    )}
+                    {a.address && <div className="max-w-60 text-sm break-words text-baan-muted">{a.address}</div>}
                   </td>
                   <td className={td}>{a.service}</td>
                   <td className={td}>
@@ -220,6 +240,20 @@ function AppointmentTable({ rows, tab, today, q }: { rows: AdminAppointment[]; t
                         <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ${statusStyle[a.status]}`}>
                           {a.status}
                         </span>
+                        {a.email_for === a.status && (a.email_status === "failed" || a.email_status === "no_email") && (
+                            <div className="mt-2 flex flex-col items-start gap-1">
+                              <span
+                                title={a.email_error ?? undefined}
+                                className="rounded-full bg-[#FBE9E9] px-2.5 py-0.5 text-xs font-bold text-[#9B2C2C]"
+                              >
+                                Email not sent{a.email_status === "no_email" ? " (no address)" : ""}
+                              </span>
+                              {a.appt_date >= today && <RetryEmailButton id={a.id} />}
+                            </div>
+                          )}
+                        {a.email_for === a.status && a.email_status === "sent" && (
+                          <div className="mt-2 text-sm text-baan-teal">Resident emailed</div>
+                        )}
                         <div className="mt-2 text-sm text-baan-muted">Updated {formatTimestamp(a.updated_at)}</div>
                         {a.archived_at && (
                           <div className="text-sm text-baan-muted">Archived {formatTimestamp(a.archived_at)}</div>
@@ -248,7 +282,11 @@ function AppointmentTable({ rows, tab, today, q }: { rows: AdminAppointment[]; t
 
 const fieldLabels: Record<string, string> = {
   resident_name: "Name",
+  first_name: "First name",
+  last_name: "Last name",
+  email: "Email",
   phone: "Phone",
+  address: "Address",
   service: "Service",
   appt_date: "Date",
   time_slot: "Time",

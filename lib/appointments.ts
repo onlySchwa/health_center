@@ -44,10 +44,12 @@ export async function getMyAppointments(): Promise<ResidentAppointment[]> {
   return data;
 }
 
-// Only the fields staff need for their duties: no email, no account ID.
+// Only the fields staff need for their duties (contact details included): no account ID.
 export type StaffAppointment = ResidentAppointment & {
   resident_name: string;
-  phone: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
   note: string | null;
 };
 
@@ -57,7 +59,7 @@ export async function getStaffAppointments(services: string[], view: StaffView, 
   const today = manilaToday();
   let query = createSupabase()
     .from("appointments")
-    .select("id, ref, resident_name, phone, service, appt_date, time_slot, note, status")
+    .select("id, ref, resident_name, email, phone, address, service, appt_date, time_slot, note, status")
     .in("service", services)
     .is("archived_at", null);
 

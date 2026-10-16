@@ -1,6 +1,21 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
+import {
+  ArrowRight,
+  CalendarDays,
+  ChevronDown,
+  CircleCheck,
+  Lock,
+  Mail,
+  MapPin,
+  Phone,
+  Stethoscope,
+  Sun,
+  Sunset,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -10,14 +25,49 @@ import { services, timeSlots } from "@/lib/appointment-options";
 // Holds what a signed-out visitor typed while they sign in. sessionStorage is
 // per-tab and cleared when the tab closes; we also delete it as soon as it's restored.
 const DRAFT_KEY = "baan-booking-draft";
-const draftFields = ["name", "phone", "service", "date", "time", "note"];
+const draftFields = ["email", "firstName", "lastName", "phone", "address", "service", "time", "date", "note"];
 
 const fieldClass =
-  "min-h-12 rounded-[10px] border-[1.5px] border-[#B9C9CC] bg-white px-3.5 py-2.5 text-base text-baan-ink focus:border-baan-teal focus:outline-3 focus:outline-[#7FC7C4]";
+  "peer min-h-12 w-full rounded-xl border border-baan-line bg-baan-mist/60 px-3.5 py-2.5 text-base text-baan-ink transition-colors placeholder:text-[#7A9095] hover:border-[#B9C9CC] focus:border-baan-teal focus:bg-white focus:outline-none focus:ring-4 focus:ring-baan-teal/15";
+const withIcon = "pl-11";
 const labelClass = "text-sm font-semibold text-baan-ink";
+const optional = <span className="ml-1 text-[13px] font-normal text-baan-muted">(optional)</span>;
+const slotIcons = [Sun, Sunset];
+
+function Field({ id, label, icon: Icon, children, wide }: {
+  id: string;
+  label: React.ReactNode;
+  icon?: LucideIcon;
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div className={`flex flex-col gap-1.5 ${wide ? "col-span-full" : ""}`}>
+      <label htmlFor={id} className={labelClass}>{label}</label>
+      <div className="relative">
+        {children}
+        {Icon && (
+          <Icon aria-hidden className="pointer-events-none absolute top-3.5 left-3.5 size-5 text-[#7A9095] peer-focus:text-baan-teal" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionHeading({ step, title }: { step: number; title: string }) {
+  return (
+    <div className="col-span-full flex items-center gap-3 pt-2">
+      <span className="flex size-7 flex-none items-center justify-center rounded-full bg-baan-teal/10 text-sm font-bold text-baan-teal">
+        {step}
+      </span>
+      <h4 className="text-[13px] font-bold tracking-[0.14em] text-baan-navy uppercase">{title}</h4>
+      <span aria-hidden className="h-px flex-1 bg-baan-line" />
+    </div>
+  );
+}
 
 type BookingFormProps = {
-  defaults?: { name?: string; phone?: string };
+  defaults?: { firstName?: string; lastName?: string; email?: string; phone?: string };
 };
 
 // Signed-in residents' requests are saved; signed-out visitors are sent to sign in
@@ -40,6 +90,7 @@ export function BookingForm({ defaults }: BookingFormProps) {
       sessionStorage.removeItem(DRAFT_KEY);
       const draft: Record<string, string> = JSON.parse(saved);
       for (const field of draftFields) {
+        // Radio groups come back as a RadioNodeList, whose value setter checks the matching option.
         const el = form.elements.namedItem(field);
         if (draft[field] && el && "value" in el) el.value = draft[field];
       }
@@ -71,93 +122,125 @@ export function BookingForm({ defaults }: BookingFormProps) {
     router.push(`/sign-in?redirect_url=${encodeURIComponent(`${pathname}#book`)}`);
   }
 
+  const card =
+    "min-w-0 flex-[1_1_520px] rounded-3xl bg-white text-baan-ink shadow-[0_24px_60px_-12px_rgba(0,0,0,0.35)] ring-1 ring-black/5";
+
   if (submitted) {
     return (
-      <div
-        role="status"
-        className="flex min-w-0 flex-[1_1_520px] flex-col items-start gap-4 rounded-[20px] bg-white p-9 text-baan-ink shadow-[0_30px_60px_rgba(0,0,0,0.25)]"
-      >
+      <div role="status" className={`${card} flex flex-col items-center gap-4 p-10 text-center`}>
+        <span className="flex size-16 items-center justify-center rounded-full bg-baan-teal/10">
+          <CircleCheck aria-hidden className="size-9 text-baan-teal" />
+        </span>
         <h3 className="font-display text-[26px] font-bold text-baan-navy">Request received</h3>
-        <p className="text-lg leading-relaxed text-baan-muted">
-          Salamat! We&apos;ll text you to confirm your schedule.
+        <p className="max-w-sm text-lg leading-relaxed text-baan-muted">
+          Salamat! We&apos;ll email you once your schedule is confirmed.
         </p>
-        <button
-          type="button"
-          onClick={() => setSubmitted(false)}
-          className="min-h-11 font-bold text-baan-orange hover:underline"
-        >
-          Book another appointment
-        </button>
-        {pathname !== "/dashboard" && (
-          <Link href="/dashboard" className="inline-flex min-h-11 items-center font-bold text-baan-teal hover:underline">
-            Go to my dashboard →
-          </Link>
-        )}
+        <div className="mt-2 flex flex-wrap justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setSubmitted(false)}
+            className="inline-flex min-h-11 items-center rounded-full border border-baan-line px-5 font-bold text-baan-navy hover:bg-baan-mist"
+          >
+            Book another
+          </button>
+          {pathname !== "/dashboard" && (
+            <Link
+              href="/dashboard"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-baan-teal px-5 font-bold text-white hover:brightness-110"
+            >
+              Go to my dashboard <ArrowRight aria-hidden className="size-4" />
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <form
-      ref={formRef}
-      aria-labelledby="form-h"
-      onSubmit={handleSubmit}
-      className="grid min-w-0 flex-[1_1_520px] grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-5 gap-y-4.5 rounded-[20px] bg-white p-9 text-baan-ink shadow-[0_30px_60px_rgba(0,0,0,0.25)]"
-    >
-      <h3 id="form-h" className="col-span-full font-display text-[26px] font-bold text-baan-navy">
-        Request your appointment
-      </h3>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="f-name" className={labelClass}>Full name</label>
-        <input id="f-name" name="name" type="text" autoComplete="name" placeholder="Juan Dela Cruz" defaultValue={defaults?.name} maxLength={100} required className={fieldClass} />
+    <form ref={formRef} aria-labelledby="form-h" onSubmit={handleSubmit} className={`${card} overflow-hidden`}>
+      <div className="border-b border-baan-line bg-linear-to-br from-baan-mist to-white px-7 py-6 sm:px-9">
+        <p className="text-xs font-bold tracking-[0.18em] text-baan-teal uppercase">Book a visit</p>
+        <h3 id="form-h" className="mt-1 font-display text-[26px] font-bold text-baan-navy">
+          Request your appointment
+        </h3>
+        <p className="mt-1 text-[15px] text-baan-muted">It takes about a minute. We&apos;ll confirm by email.</p>
       </div>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="f-phone" className={labelClass}>Mobile number</label>
-        <input id="f-phone" name="phone" type="tel" autoComplete="tel" placeholder="09XX XXX XXXX" defaultValue={defaults?.phone} maxLength={20} required className={fieldClass} />
-      </div>
-      <div className="col-span-full flex flex-col gap-1.5">
-        <label htmlFor="f-svc" className={labelClass}>Service</label>
-        <select id="f-svc" name="service" className={fieldClass}>
-          {services.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="f-date" className={labelClass}>Preferred date</label>
-        <input id="f-date" name="date" type="date" required className={fieldClass} />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="f-time" className={labelClass}>Preferred time</label>
-        <select id="f-time" name="time" className={fieldClass}>
-          {timeSlots.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
-      </div>
-      <div className="col-span-full flex flex-col gap-1.5">
-        <label htmlFor="f-note" className={labelClass}>
-          Anything we should know? <span className="font-normal text-[#4F6970]">(optional)</span>
-        </label>
-        <textarea id="f-note" name="note" rows={3} placeholder="e.g. second dose, follow-up visit" maxLength={500} className={fieldClass} />
-      </div>
-      {error && (
-        <p role="alert" className="col-span-full rounded-[10px] bg-[#FBE9E9] px-4 py-3 font-semibold text-[#9B2C2C]">
-          {error}
+
+      <div className="grid grid-cols-1 gap-x-5 gap-y-4.5 px-7 py-7 sm:grid-cols-2 sm:px-9">
+        <SectionHeading step={1} title="Your details" />
+        <Field id="f-email" label="Email address" icon={Mail} wide>
+          <input id="f-email" name="email" type="email" autoComplete="email" placeholder="juan@example.com" defaultValue={defaults?.email} maxLength={254} required className={`${fieldClass} ${withIcon}`} />
+        </Field>
+        <Field id="f-first" label="First name" icon={User}>
+          <input id="f-first" name="firstName" type="text" autoComplete="given-name" placeholder="Juan" defaultValue={defaults?.firstName} maxLength={50} required className={`${fieldClass} ${withIcon}`} />
+        </Field>
+        <Field id="f-last" label="Last name">
+          <input id="f-last" name="lastName" type="text" autoComplete="family-name" placeholder="Dela Cruz" defaultValue={defaults?.lastName} maxLength={50} required className={fieldClass} />
+        </Field>
+        <Field id="f-phone" label={<>Mobile number{optional}</>} icon={Phone} wide>
+          <input id="f-phone" name="phone" type="tel" autoComplete="tel" placeholder="09XX XXX XXXX" defaultValue={defaults?.phone} pattern="[0-9+ \-]{7,20}" maxLength={20} className={`${fieldClass} ${withIcon}`} />
+        </Field>
+        <Field id="f-address" label="Address" icon={MapPin} wide>
+          <input id="f-address" name="address" type="text" autoComplete="street-address" placeholder="House no., street, barangay, city" minLength={5} maxLength={200} required className={`${fieldClass} ${withIcon}`} />
+        </Field>
+
+        <SectionHeading step={2} title="Appointment" />
+        <Field id="f-svc" label="Service to appoint" icon={Stethoscope} wide>
+          <select id="f-svc" name="service" className={`${fieldClass} ${withIcon} appearance-none pr-10`}>
+            {services.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+          <ChevronDown aria-hidden className="pointer-events-none absolute top-3.5 right-3.5 size-5 text-[#7A9095]" />
+        </Field>
+        <fieldset className="col-span-full flex flex-col gap-1.5">
+          <legend className={`${labelClass} mb-1.5`}>Preferred time</legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {timeSlots.map((t, i) => {
+              const Icon = slotIcons[i] ?? Sun;
+              const [label, hours] = t.split(" (");
+              return (
+                <label
+                  key={t}
+                  className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-baan-line bg-baan-mist/60 px-4 py-3 transition-colors hover:border-[#B9C9CC] has-checked:border-baan-teal has-checked:bg-baan-teal/5 has-checked:ring-4 has-checked:ring-baan-teal/15 has-focus-visible:ring-4 has-focus-visible:ring-baan-teal/25"
+                >
+                  <input type="radio" name="time" value={t} defaultChecked={i === 0} className="sr-only" />
+                  <Icon aria-hidden className="size-5 flex-none text-baan-teal" />
+                  <span className="flex flex-col leading-tight">
+                    <span className="font-semibold text-baan-navy">{label}</span>
+                    <span className="text-sm text-baan-muted">{hours?.replace(")", "")}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+        <Field id="f-date" label="Preferred date" icon={CalendarDays} wide>
+          <input id="f-date" name="date" type="date" required className={`${fieldClass} ${withIcon}`} />
+        </Field>
+        <Field id="f-note" label={<>Anything we should know?{optional}</>} wide>
+          <textarea id="f-note" name="note" rows={3} placeholder="e.g. second dose, follow-up visit" maxLength={500} className={`${fieldClass} resize-y`} />
+        </Field>
+
+        {error && (
+          <p role="alert" className="col-span-full rounded-xl border border-[#F2C9C9] bg-[#FBE9E9] px-4 py-3 font-semibold text-[#9B2C2C]">
+            {error}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={saving}
+          className="col-span-full mt-1 inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-baan-orange text-[17px] font-bold text-white shadow-[0_8px_20px_-6px_rgba(196,81,31,0.6)] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-baan-orange/30 disabled:opacity-60"
+        >
+          {saving ? "Sending…" : <>Request appointment <ArrowRight aria-hidden className="size-5" /></>}
+        </button>
+        <p className="col-span-full flex items-center justify-center gap-1.5 text-center text-sm text-baan-muted">
+          <Lock aria-hidden className="size-3.5 flex-none" />
+          {isLoaded && !isSignedIn
+            ? "You'll sign in first — your details stay filled in."
+            : "Your details are only used to confirm your visit."}
         </p>
-      )}
-      <button
-        type="submit"
-        disabled={saving}
-        className="col-span-full inline-flex min-h-14 items-center justify-center rounded-full bg-baan-orange text-[17px] font-bold text-white hover:brightness-90 disabled:opacity-60"
-      >
-        {saving ? "Sending…" : "Request appointment"}
-      </button>
-      <p className="col-span-full text-center text-sm text-[#4F6970]">
-        {isLoaded && !isSignedIn
-          ? "You'll sign in first — your details stay filled in."
-          : "We only use your number to confirm your schedule."}
-      </p>
+      </div>
     </form>
   );
 }

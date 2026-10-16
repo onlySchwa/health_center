@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { reviewAppointment } from "@/lib/actions";
+import { retryStatusEmail, reviewAppointment } from "@/lib/actions";
 
 const labels = { confirmed: "Confirm", rejected: "Reject" } as const;
 
@@ -76,5 +76,35 @@ export function AdminActions({ id, resident, canConfirm }: { id: number; residen
         </span>
       )}
     </div>
+  );
+}
+
+// Re-sends a confirmed/rejected email that failed. The server skips it if it has since been sent.
+export function RetryEmailButton({ id }: { id: number }) {
+  const [error, setError] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() =>
+          startTransition(async () => {
+            setError("");
+            const result = await retryStatusEmail(id);
+            if (!result.ok) setError(result.error);
+          })
+        }
+        className="min-h-9 text-sm font-bold text-baan-teal hover:underline disabled:opacity-60"
+      >
+        {isPending ? "Sending…" : "Retry email"}
+      </button>
+      {error && (
+        <span role="alert" className="text-sm font-semibold text-[#9B2C2C]">
+          {error}
+        </span>
+      )}
+    </>
   );
 }
