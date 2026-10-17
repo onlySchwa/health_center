@@ -4,7 +4,6 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { MinDelay } from "@/components/min-delay";
 import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
-import { PrintButton } from "@/components/print-button";
 import { isAdmin } from "@/lib/admin";
 import { services, statusStyle } from "@/lib/appointment-options";
 import { manilaToday } from "@/lib/appointments";
@@ -72,7 +71,12 @@ async function ReportsContent({ searchParams }: { searchParams: PageProps<"/admi
           >
             Download CSV
           </a>
-          <PrintButton />
+          <a
+            href={`/admin/reports/pdf?${filtersQuery(filters)}`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-baan-navy px-5 font-bold text-white hover:brightness-110"
+          >
+            Download PDF
+          </a>
         </div>
       </div>
 
@@ -172,7 +176,7 @@ async function ReportsContent({ searchParams }: { searchParams: PageProps<"/admi
           </div>
 
           <p className="text-sm text-baan-muted">
-            Counts every non-archived appointment whose visit date falls in the range. The CSV lists the same
+            Counts every non-archived appointment whose visit date falls in the range. The CSV and PDF list the same
             appointments, without contact details.
           </p>
         </>
