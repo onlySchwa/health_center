@@ -146,3 +146,38 @@ html {
     @apply font-sans;
   }
 }
+/* Story slider (components/story-slider.tsx): the playing slide's bar fills, and each slide's text rises in. */
+@keyframes story-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.story-fill {
+  animation: story-fill linear forwards;
+}
+
+@keyframes story-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* "backwards" holds the start pose during each line's delay, then lets go. */
+.story-rise {
+  animation: story-rise 0.8s cubic-bezier(0.22, 0.8, 0.24, 1) 0.1s backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-rise {
+    animation: none;
+  }
+}
