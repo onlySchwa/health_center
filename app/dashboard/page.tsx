@@ -2,9 +2,12 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { MinDelay } from "@/components/min-delay";
+import { ResidentDashboardSkeleton } from "@/components/page-skeletons";
 import { ResidentDashboard } from "@/components/resident-dashboard";
 import { isAdmin } from "@/lib/admin";
 import { formatApptDate, getMyAppointments, getStaffAccess, manilaToday } from "@/lib/appointments";
+import DashboardLoading from "./loading";
 
 export const metadata: Metadata = {
   title: "My Dashboard — Baan Health Care",
@@ -13,11 +16,13 @@ export const metadata: Metadata = {
 
 export default function DashboardPage() {
   return (
-    <main className="w-full flex-1 bg-baan-mist text-baan-ink">
-      <Suspense fallback={<p className="mx-auto max-w-310 px-6 py-24 text-baan-muted">Loading your dashboard…</p>}>
-        <DashboardContent />
-      </Suspense>
-    </main>
+    <MinDelay fallback={<DashboardLoading />}>
+      <main className="w-full flex-1 bg-baan-mist text-baan-ink">
+        <Suspense fallback={<ResidentDashboardSkeleton />}>
+          <DashboardContent />
+        </Suspense>
+      </main>
+    </MinDelay>
   );
 }
 

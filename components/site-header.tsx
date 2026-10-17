@@ -7,7 +7,7 @@ import logo from "@/public/logo.jpg";
 
 export function SiteHeader() {
   return (
-    <header className="relative z-10 border-b border-baan-line bg-white">
+    <header className="relative z-10 border-b border-baan-line bg-white print:hidden">
       <div className="mx-auto flex max-w-310 flex-wrap items-center justify-between gap-x-8 gap-y-3 px-6 py-2.5">
         <Link href="/" aria-label="Baan Health Care home">
           {/* The logo file has a checkerboard baked in; the filter + multiply fades it on white. */}

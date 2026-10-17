@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { MinDelay } from "@/components/min-delay";
+import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
 import { StaffActions } from "@/components/staff-actions";
 import { statusStyle } from "@/lib/appointment-options";
 import {
@@ -13,6 +15,7 @@ import {
   manilaToday,
   type StaffView,
 } from "@/lib/appointments";
+import StaffLoading from "./loading";
 
 export const metadata: Metadata = {
   title: "Staff Dashboard — Baan Health Care",
@@ -29,11 +32,13 @@ const panel = "rounded-[20px] border border-baan-line bg-white";
 
 export default function StaffPage({ searchParams }: PageProps<"/staff">) {
   return (
-    <main className="w-full flex-1 bg-baan-mist text-baan-ink">
-      <Suspense fallback={<p className="mx-auto max-w-310 px-6 py-24 text-baan-muted">Loading appointments…</p>}>
-        <StaffContent searchParams={searchParams} />
-      </Suspense>
-    </main>
+    <MinDelay fallback={<StaffLoading />}>
+      <main className="w-full flex-1 bg-baan-mist text-baan-ink">
+        <Suspense fallback={<AppointmentsTableSkeleton stats={4} />}>
+          <StaffContent searchParams={searchParams} />
+        </Suspense>
+      </main>
+    </MinDelay>
   );
 }
 

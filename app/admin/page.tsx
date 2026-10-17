@@ -1,92 +1,101 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { AdminActions, RetryEmailButton } from "@/components/admin-actions";
-import { AdminRowActions } from "@/components/admin-row-actions";
-import {
-  getActivityLog,
-  getAdminAppointments,
-  getAdminCounts,
-  isAdmin,
-  type ActivityEntry,
-  type AdminAppointment,
-} from "@/lib/admin";
-import { statusStyle } from "@/lib/appointment-options";
-import { formatApptDate, manilaToday } from "@/lib/appointments";
+import { MinDelay } from "@/components/min-delay";
+import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
+import { getAdminCounts, getUpcomingAppointments, isAdmin } from "@/lib/admin";
+import { statusStyle, type Status } from "@/lib/appointment-options";
+import { formatApptDate } from "@/lib/appointments";
+import AdminLoading from "./loading";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard — Baan Health Care",
   robots: { index: false, follow: false },
 };
 
-type Tab = "pending" | "history" | "archived" | "activity";
-
-const tabs: { id: Tab; label: string }[] = [
-  { id: "pending", label: "Pending requests" },
-  { id: "history", label: "All appointments" },
-  { id: "archived", label: "Archived" },
-  { id: "activity", label: "Activity log" },
-];
-
 const panel = "rounded-[20px] border border-baan-line bg-white";
-const th = "px-4 py-3";
-const td = "px-4 py-4";
+const shownStatuses: Status[] = ["confirmed", "completed", "missed", "rejected", "cancelled"];
 
-const formatTimestamp = (iso: string) =>
-  new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(iso),
-  );
+const isWeekend = (isoDate: string) => [0, 6].includes(new Date(`${isoDate}T00:00:00Z`).getUTCDay());
 
-export default function AdminPage({ searchParams }: PageProps<"/admin">) {
+export default function AdminOverviewPage({ searchParams }: PageProps<"/admin">) {
   return (
-    <main className="w-full flex-1 bg-baan-mist text-baan-ink">
-      <Suspense fallback={<p className="mx-auto max-w-310 px-6 py-24 text-baan-muted">Loading admin dashboard…</p>}>
-        <AdminContent searchParams={searchParams} />
-      </Suspense>
-    </main>
+    <MinDelay fallback={<AdminLoading />}>
+      <main className="w-full flex-1 bg-baan-mist text-baan-ink">
+        <Suspense fallback={<AppointmentsTableSkeleton stats={3} />}>
+          <OverviewContent searchParams={searchParams} />
+        </Suspense>
+      </main>
+    </MinDelay>
   );
 }
 
-async function AdminContent({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
+async function OverviewContent({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
   // proxy.ts already sends non-admins away; this check (and the database's own
   // row-level security) keeps the data safe even if that ever changes.
   if (!(await isAdmin())) notFound();
 
-  const params = await searchParams;
-  const tab: Tab = tabs.some((t) => t.id === params.tab) ? (params.tab as Tab) : "pending";
-  const q = typeof params.q === "string" ? params.q : "";
-  const staffOnly = params.who === "staff";
-  await connection(); // "today" depends on the current time, so compute it per request
-  const today = manilaToday();
+  // Old bookmarks: the appointment lists and activity log used to be tabs on this page.
+  const { tab } = await searchParams;
+  if (tab === "activity") redirect("/admin/audit");
+  if (typeof tab === "string") redirect(`/admin/appointments?tab=${encodeURIComponent(tab)}`);
 
-  // A database problem shouldn't take down the whole page: log it and show a notice instead.
-  const errors: unknown[] = [];
+  await connection(); // "today" depends on the current time, so compute it per request
   const fail = (error: unknown) => {
     console.error(error);
-    errors.push(error);
     return null;
   };
-  const [counts, rows, log] = await Promise.all([
-    getAdminCounts().catch(fail),
-    tab === "activity" ? null : getAdminAppointments(tab, q).catch(fail),
-    tab === "activity" ? getActivityLog(staffOnly).catch(fail) : null,
-  ]);
+  const [counts, upcoming] = await Promise.all([getAdminCounts().catch(fail), getUpcomingAppointments().catch(fail)]);
 
+  const todayLabel = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "full" }).format(new Date());
   const stats = [
     { label: "Registered residents", value: counts?.residents, tone: "text-baan-navy" },
     { label: "Today's appointments", value: counts?.today, tone: "text-baan-teal" },
     { label: "Pending requests", value: counts?.pending, tone: "text-baan-orange" },
   ];
+  const weekendCount = upcoming?.filter((a) => isWeekend(a.appt_date)).length ?? 0;
+
+  const notices: { tone: "alert" | "warn"; title: string; text: string; href?: string; link?: string }[] = [];
+  if (counts && counts.unsentEmails > 0) {
+    notices.push({
+      tone: "alert",
+      title: `${counts.unsentEmails} status ${counts.unsentEmails === 1 ? "email" : "emails"} not sent`,
+      text: "Residents weren't told their upcoming request was confirmed or rejected.",
+      href: "/admin/appointments?tab=history",
+      link: "Review and resend",
+    });
+  }
+  if (counts && counts.pending > 0) {
+    notices.push({
+      tone: "warn",
+      title: `${counts.pending} ${counts.pending === 1 ? "request is" : "requests are"} waiting for review`,
+      text: "Confirm or reject them so residents know whether to come in.",
+      href: "/admin/appointments",
+      link: "Review requests",
+    });
+  }
+  if (weekendCount > 0) {
+    notices.push({
+      tone: "warn",
+      title: `${weekendCount} upcoming ${weekendCount === 1 ? "visit falls" : "visits fall"} on a weekend`,
+      text: "Booked before the weekday-only rule. Contact the residents to reschedule.",
+    });
+  }
 
   return (
     <div className="mx-auto flex max-w-310 flex-col gap-7 px-6 py-12">
-      <section className="flex flex-col gap-2 rounded-[20px] bg-baan-navy px-8 py-9 text-white">
-        <p className="text-sm font-bold tracking-[0.18em] text-baan-mint uppercase">Admin dashboard</p>
-        <h1 className="font-display text-[clamp(30px,4vw,42px)] leading-[1.08] font-extrabold">Health center overview</h1>
-        <p className="text-[17px] text-[#CFE3E5]">All services, all residents, and every change made to appointments.</p>
-      </section>
+      <div className="flex flex-col gap-1">
+        <h1 className="font-display text-[34px] font-extrabold text-baan-navy">Overview</h1>
+        <p className="text-[15px] text-baan-muted">{todayLabel}</p>
+      </div>
+
+      {(!counts || !upcoming) && (
+        <p role="alert" className="rounded-xl bg-[#FFF1E8] px-5 py-4 text-center font-semibold text-[#9E3E14]">
+          Some data couldn&apos;t be loaded. Please try again in a few minutes.
+        </p>
+      )}
 
       <section aria-label="Summary" className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         {stats.map((s) => (
@@ -97,299 +106,78 @@ async function AdminContent({ searchParams }: { searchParams: PageProps<"/admin"
         ))}
       </section>
 
-      <section aria-labelledby="tab-h" className={`${panel} flex flex-col gap-5 p-7`}>
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 id="tab-h" className="font-display text-2xl font-bold text-baan-navy">
-            {tabs.find((t) => t.id === tab)?.label}
-          </h2>
-          <nav aria-label="Admin sections" className="flex flex-wrap rounded-full bg-baan-mist p-1">
-            {tabs.map((t) => (
-              <Link
-                key={t.id}
-                href={`/admin?tab=${t.id}`}
-                aria-current={tab === t.id ? "page" : undefined}
-                className={`inline-flex min-h-10 items-center rounded-full px-5 text-[15px] font-bold ${
-                  tab === t.id ? "bg-white text-baan-navy shadow-sm" : "text-baan-muted hover:text-baan-navy"
-                }`}
-              >
-                {t.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-
-        {tab === "activity" ? (
-          <nav aria-label="Filter activity" className="flex gap-4 text-[15px] font-bold">
-            <Link href="/admin?tab=activity" aria-current={!staffOnly ? "page" : undefined} className={staffOnly ? "text-baan-muted hover:text-baan-navy" : "text-baan-teal underline"}>
-              Everyone
-            </Link>
-            <Link href="/admin?tab=activity&who=staff" aria-current={staffOnly ? "page" : undefined} className={!staffOnly ? "text-baan-muted hover:text-baan-navy" : "text-baan-teal underline"}>
-              Staff &amp; admins only
-            </Link>
-          </nav>
-        ) : (
-          <form action="/admin" role="search" className="flex flex-wrap gap-3">
-            <input type="hidden" name="tab" value={tab} />
-            <label htmlFor="admin-q" className="sr-only">
-              Search by resident name or appointment ID
-            </label>
-            <input
-              id="admin-q"
-              name="q"
-              type="search"
-              defaultValue={q}
-              placeholder="Search resident name or ID (e.g. BHC-000012)"
-              className="min-h-12 min-w-0 flex-[1_1_280px] rounded-full border-[1.5px] border-[#B9C9CC] bg-white px-5 text-base focus:border-baan-teal focus:outline-3 focus:outline-[#7FC7C4]"
-            />
-            <button type="submit" className="min-h-12 rounded-full bg-baan-orange px-6 text-base font-bold text-white hover:brightness-90">
-              Search
-            </button>
-            {q && (
-              <Link href={`/admin?tab=${tab}`} className="inline-flex min-h-12 items-center px-2 font-bold text-baan-muted hover:text-baan-navy">
-                Clear
-              </Link>
-            )}
-          </form>
-        )}
-
-        {(counts?.unsentEmails ?? 0) > 0 && (
-          <p role="status" className="rounded-xl bg-[#FFF1E8] px-5 py-4 font-semibold text-[#9E3E14]">
-            {counts!.unsentEmails} upcoming confirmed or rejected{" "}
-            {counts!.unsentEmails === 1 ? "request hasn't" : "requests haven't"} been emailed to the resident.
-            They&apos;re marked &ldquo;Email not sent&rdquo; under{" "}
-            <Link href="/admin?tab=history" className="underline">
-              All appointments
-            </Link>
-            .
-          </p>
-        )}
-
-        {errors.length > 0 && (
-          <p role="alert" className="rounded-xl bg-[#FFF1E8] px-5 py-4 text-center font-semibold text-[#9E3E14]">
-            Some data couldn&apos;t be loaded. Please try again in a few minutes.
-          </p>
-        )}
-
-        {rows && <AppointmentTable rows={rows} tab={tab} today={today} q={q} />}
-        {log && <ActivityTable log={log} />}
+      <section aria-label="Appointments by status" className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
+        {shownStatuses.map((s) => (
+          <div key={s} className={`${panel} flex items-center justify-between gap-3 rounded-2xl px-5 py-4`}>
+            <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ${statusStyle[s]}`}>{s}</span>
+            <span className="font-display text-[28px] font-extrabold text-baan-navy">{counts?.byStatus[s] ?? "—"}</span>
+          </div>
+        ))}
       </section>
-    </div>
-  );
-}
 
-function AppointmentTable({ rows, tab, today, q }: { rows: AdminAppointment[]; tab: Tab; today: string; q: string }) {
-  if (rows.length === 0) {
-    return (
-      <p className="rounded-xl bg-baan-mist px-5 py-10 text-center text-baan-muted">
-        {q
-          ? `No appointments match “${q}”.`
-          : { pending: "No requests waiting for review.", archived: "No archived appointments.", history: "No appointments yet." }[
-              tab as "pending" | "history" | "archived"
-            ]}
-      </p>
-    );
-  }
-  return (
-    <>
-      <div className="overflow-x-auto rounded-xl border border-baan-line">
-        <table className="w-full min-w-215 border-collapse text-left text-[15px]">
-          <thead className="bg-baan-mist text-[13px] tracking-[0.08em] text-baan-muted uppercase">
-            <tr>
-              <th scope="col" className={th}>ID</th>
-              <th scope="col" className={th}>Resident</th>
-              <th scope="col" className={th}>Service</th>
-              <th scope="col" className={th}>Date &amp; time</th>
-              <th scope="col" className={th}>Visit note</th>
-              <th scope="col" className={th}>{tab === "pending" ? "Review" : "Status"}</th>
-              {tab !== "pending" && <th scope="col" className={th}>Manage</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((a) => {
-              const d = formatApptDate(a.appt_date);
-              return (
-                <tr key={a.id} className="border-t border-baan-line align-top">
-                  <td className={`${td} font-semibold whitespace-nowrap text-baan-muted`}>{a.ref}</td>
-                  <td className={td}>
-                    <div className="font-semibold text-baan-navy">{a.resident_name}</div>
-                    {a.email && (
-                      <a href={`mailto:${a.email}`} className="block break-all text-baan-teal hover:underline">
-                        {a.email}
-                      </a>
-                    )}
-                    {a.phone && (
-                      <a href={`tel:${a.phone}`} className="block text-baan-teal hover:underline">
-                        {a.phone}
-                      </a>
-                    )}
-                    {a.address && <div className="max-w-60 text-sm break-words text-baan-muted">{a.address}</div>}
-                  </td>
-                  <td className={td}>{a.service}</td>
-                  <td className={td}>
-                    <div className="font-semibold whitespace-nowrap">
-                      {a.appt_date === today ? "Today" : `${d.weekday.slice(0, 3)}, ${d.month} ${d.day}`}
+      <div className="flex flex-wrap items-start gap-6">
+        <section aria-labelledby="upcoming-h" className={`${panel} min-w-0 flex-[999_1_520px] overflow-hidden`}>
+          <div className="flex items-center justify-between gap-3 border-b border-baan-line px-7 py-5">
+            <h2 id="upcoming-h" className="font-display text-2xl font-bold text-baan-navy">Upcoming appointments</h2>
+            <Link href="/admin/appointments?tab=history" className="font-bold text-baan-teal hover:text-baan-navy">
+              View all
+            </Link>
+          </div>
+          {upcoming && upcoming.length === 0 ? (
+            <p className="px-7 py-10 text-center text-baan-muted">No upcoming appointments.</p>
+          ) : (
+            <ul>
+              {upcoming?.slice(0, 8).map((a) => {
+                const d = formatApptDate(a.appt_date);
+                return (
+                  <li key={a.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-baan-line/70 px-7 py-4 last:border-b-0">
+                    <div className="flex w-14 flex-none flex-col items-center rounded-xl bg-baan-mist py-1.5">
+                      <span className="text-xs font-bold tracking-widest text-baan-teal uppercase">{d.month}</span>
+                      <span className="font-display text-2xl leading-tight font-extrabold text-baan-navy">{d.day}</span>
                     </div>
-                    <div className="text-baan-muted">{a.time_slot}</div>
-                  </td>
-                  <td className={`${td} max-w-60 break-words text-baan-muted`}>{a.note || "—"}</td>
-                  <td className={td}>
-                    {tab === "pending" ? (
-                      <AdminActions id={a.id} resident={a.resident_name} canConfirm={a.appt_date >= today} />
-                    ) : (
-                      <>
-                        <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ${statusStyle[a.status]}`}>
-                          {a.status}
-                        </span>
-                        {a.email_for === a.status && (a.email_status === "failed" || a.email_status === "no_email") && (
-                            <div className="mt-2 flex flex-col items-start gap-1">
-                              <span
-                                title={a.email_error ?? undefined}
-                                className="rounded-full bg-[#FBE9E9] px-2.5 py-0.5 text-xs font-bold text-[#9B2C2C]"
-                              >
-                                Email not sent{a.email_status === "no_email" ? " (no address)" : ""}
-                              </span>
-                              {a.appt_date >= today && <RetryEmailButton id={a.id} />}
-                            </div>
-                          )}
-                        {a.email_for === a.status && a.email_status === "sent" && (
-                          <div className="mt-2 text-sm text-baan-teal">Resident emailed</div>
-                        )}
-                        <div className="mt-2 text-sm text-baan-muted">Updated {formatTimestamp(a.updated_at)}</div>
-                        {a.archived_at && (
-                          <div className="text-sm text-baan-muted">Archived {formatTimestamp(a.archived_at)}</div>
-                        )}
-                      </>
-                    )}
-                  </td>
-                  {tab !== "pending" && (
-                    <td className={td}>
-                      <AdminRowActions appointment={a} />
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-sm text-baan-muted">
-        Showing up to 200 appointments across all services.
-        {tab === "archived" ? " Archived appointments are hidden from residents and staff." : ""} Every change is kept in the activity log.
-      </p>
-    </>
-  );
-}
+                    <div className="flex min-w-0 flex-[1_1_200px] flex-col gap-0.5">
+                      <span className="font-bold text-baan-navy">{a.resident_name}</span>
+                      <span className="text-sm text-baan-muted">
+                        {a.service} · {d.weekday.slice(0, 3)} · {a.time_slot}
+                      </span>
+                    </div>
+                    <span className="text-[13px] font-semibold text-baan-muted">{a.ref}</span>
+                    <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ${statusStyle[a.status]}`}>{a.status}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
-const fieldLabels: Record<string, string> = {
-  resident_name: "Name",
-  first_name: "First name",
-  last_name: "Last name",
-  email: "Email",
-  phone: "Phone",
-  address: "Address",
-  service: "Service",
-  appt_date: "Date",
-  time_slot: "Time",
-  note: "Note",
-};
-
-const show = (value: unknown) => (value === null || value === "" ? "(empty)" : String(value));
-
-function ActivityAction({ e }: { e: ActivityEntry }) {
-  const badge = (status: ActivityEntry["new_status"]) => (
-    <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ${statusStyle[status]}`}>{status}</span>
-  );
-  switch (e.action) {
-    case "created":
-      return <span className="font-semibold">Booked appointment</span>;
-    case "status":
-      return (
-        <span className="flex flex-wrap items-center gap-2">
-          {e.old_status && badge(e.old_status)}
-          <span aria-label="changed to">→</span>
-          {badge(e.new_status)}
-        </span>
-      );
-    case "edited":
-      return (
-        <div className="flex flex-col gap-1">
-          <span className="font-semibold">Edited details</span>
-          <ul className="text-sm text-baan-muted">
-            {Object.entries((e.details ?? {}) as Record<string, { from: unknown; to: unknown }>).map(([key, c]) => (
-              <li key={key}>
-                {fieldLabels[key] ?? key}: {show(c.from)} → <span className="text-baan-ink">{show(c.to)}</span>
+        <section aria-labelledby="notices-h" className={`${panel} min-w-0 flex-[1_1_320px] overflow-hidden`}>
+          <h2 id="notices-h" className="border-b border-baan-line px-6 py-5 font-display text-2xl font-bold text-baan-navy">
+            Notifications
+          </h2>
+          <ul className="flex flex-col gap-3 p-5">
+            {notices.length === 0 && (
+              <li className="rounded-xl bg-[#E8F4F3] px-4 py-3.5">
+                <strong className="text-[#145C5A]">All clear</strong>
+                <p className="text-sm text-[#2F5654]">No unsent emails, pending requests or weekend visits.</p>
+              </li>
+            )}
+            {notices.map((n) => (
+              <li
+                key={n.title}
+                className={`flex flex-col gap-1 rounded-xl px-4 py-3.5 ${n.tone === "alert" ? "bg-[#FBE9E9] text-[#5E2A2A]" : "bg-[#FFF1E8] text-[#5E3A28]"}`}
+              >
+                <strong className={n.tone === "alert" ? "text-[#7F2222]" : "text-[#7E3210]"}>{n.title}</strong>
+                <p className="text-sm leading-snug">{n.text}</p>
+                {n.href && (
+                  <Link href={n.href} className="text-sm font-bold underline">
+                    {n.link}
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
-        </div>
-      );
-    case "archived":
-      return <span className="font-semibold">Archived</span>;
-    case "restored":
-      return <span className="font-semibold">Restored from archive</span>;
-    case "deleted":
-      return <span className="font-semibold text-[#9B2C2C]">Permanently deleted</span>;
-  }
-}
-
-const roleStyle: Record<ActivityEntry["actor_role"], string> = {
-  resident: "bg-baan-mist text-baan-muted",
-  staff: "bg-[#DDF3F2] text-[#145C5A]",
-  admin: "bg-[#FFF1E8] text-[#9E3E14]",
-  system: "bg-[#EEF0F1] text-[#55666B]",
-};
-
-function ActivityTable({ log }: { log: ActivityEntry[] }) {
-  if (log.length === 0) {
-    return <p className="rounded-xl bg-baan-mist px-5 py-10 text-center text-baan-muted">No activity recorded yet.</p>;
-  }
-  return (
-    <>
-      <div className="overflow-x-auto rounded-xl border border-baan-line">
-        <table className="w-full min-w-215 border-collapse text-left text-[15px]">
-          <thead className="bg-baan-mist text-[13px] tracking-[0.08em] text-baan-muted uppercase">
-            <tr>
-              <th scope="col" className={th}>When</th>
-              <th scope="col" className={th}>Who</th>
-              <th scope="col" className={th}>Action</th>
-              <th scope="col" className={th}>Appointment</th>
-            </tr>
-          </thead>
-          <tbody>
-            {log.map((e) => (
-              <tr key={e.id} className="border-t border-baan-line align-top">
-                <td className={`${td} whitespace-nowrap text-baan-muted`}>{formatTimestamp(e.created_at)}</td>
-                <td className={td}>
-                  <div className="font-semibold text-baan-navy">{e.actor_name}</div>
-                  <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold capitalize ${roleStyle[e.actor_role]}`}>
-                    {e.actor_role}
-                  </span>
-                </td>
-                <td className={td}>
-                  <ActivityAction e={e} />
-                </td>
-                <td className={td}>
-                  <div className="font-semibold text-baan-muted">{e.appointment_ref}</div>
-                  {e.appointment ? (
-                    <div>
-                      {e.appointment.resident_name} · {e.appointment.service}
-                    </div>
-                  ) : e.action === "deleted" && e.details ? (
-                    <div>
-                      {show(e.details.resident_name)} · {show(e.details.service)}
-                    </div>
-                  ) : (
-                    <div className="text-baan-muted">Deleted</div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        </section>
       </div>
-      <p className="text-sm text-baan-muted">
-        Showing the latest 100 changes. Entries are written by the database and can&apos;t be edited or deleted.
-      </p>
-    </>
+    </div>
   );
 }
