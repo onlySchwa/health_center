@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { PageBanner } from "@/components/page-banner";
 import heroBanner from "@/public/hero-banner.jpg";
+import { MinDelay } from "@/components/min-delay";
+import ContactLoading from "./loading";
 
 export const metadata: Metadata = {
   title: "Contact Us — Baan Health Care",
@@ -14,65 +16,67 @@ const directions =
 
 export default function ContactPage() {
   return (
-    <main className="w-full bg-baan-mist text-baan-ink">
-      <PageBanner title="Contact Us" image={heroBanner} alt="Baan KM 3 Barangay Health Center buildings under a clear blue sky" />
+    <MinDelay fallback={<ContactLoading />}>
+      <main className="w-full bg-baan-mist text-baan-ink">
+        <PageBanner title="Contact Us" image={heroBanner} alt="Baan KM 3 Barangay Health Center buildings under a clear blue sky" />
 
-      <div className="mx-auto flex max-w-310 flex-col gap-16 px-6 pt-14 pb-24">
-        <section aria-labelledby="location-h" className="overflow-hidden rounded-[20px] border border-baan-line bg-white">
-          <h2 id="location-h" className="bg-baan-navy px-8 py-5 font-display text-2xl font-bold text-white">
-            Our Location
-          </h2>
-          <div className="p-5 sm:p-8">
-            <figure className="overflow-hidden rounded-xl border border-baan-line">
-              <iframe
-                src={mapEmbed}
-                title="Map showing Barangay Baan KM 3 Health Center"
-                loading="lazy"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-                className="block h-[clamp(320px,50vw,480px)] w-full border-0"
-              />
-              <figcaption className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-                <div className="min-w-0">
-                  <p className="font-bold tracking-[0.04em] text-baan-navy uppercase">Barangay Baan KM 3 Health Center</p>
-                  <p className="text-baan-muted">Baan KM 3, Butuan City</p>
-                </div>
-                <a
-                  href={directions}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border-[1.5px] border-baan-navy px-4 font-semibold text-baan-navy hover:bg-baan-mist"
-                >
-                  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="m16 8-6 2-2 6 6-2z" />
-                  </svg>
-                  Directions
-                  <span className="sr-only">(opens Google Maps in a new tab)</span>
-                </a>
-              </figcaption>
-            </figure>
-          </div>
-        </section>
+        <div className="mx-auto flex max-w-310 flex-col gap-16 px-6 pt-14 pb-24">
+          <section aria-labelledby="location-h" className="overflow-hidden rounded-[20px] border border-baan-line bg-white">
+            <h2 id="location-h" className="bg-baan-navy px-8 py-5 font-display text-2xl font-bold text-white">
+              Our Location
+            </h2>
+            <div className="p-5 sm:p-8">
+              <figure className="overflow-hidden rounded-xl border border-baan-line">
+                <iframe
+                  src={mapEmbed}
+                  title="Map showing Barangay Baan KM 3 Health Center"
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                  className="block h-[clamp(320px,50vw,480px)] w-full border-0"
+                />
+                <figcaption className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="font-bold tracking-[0.04em] text-baan-navy uppercase">Barangay Baan KM 3 Health Center</p>
+                    <p className="text-baan-muted">Baan KM 3, Butuan City</p>
+                  </div>
+                  <a
+                    href={directions}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border-[1.5px] border-baan-navy px-4 font-semibold text-baan-navy hover:bg-baan-mist"
+                  >
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="m16 8-6 2-2 6 6-2z" />
+                    </svg>
+                    Directions
+                    <span className="sr-only">(opens Google Maps in a new tab)</span>
+                  </a>
+                </figcaption>
+              </figure>
+            </div>
+          </section>
 
-        <section aria-labelledby="reach-h" className="flex flex-col gap-2">
-          <h2 id="reach-h" className="font-display text-[clamp(30px,3.6vw,40px)] leading-tight font-extrabold text-baan-navy">
-            Reach Out to Us
-          </h2>
-          <p className="text-lg text-baan-muted">
-            Have questions about our services or your appointment? We&apos;re here to help.{" "}
-            <a
-              href="https://m.me/Worcestersher"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-baan-teal underline underline-offset-3 hover:text-baan-navy"
-            >
-              Send us a message
-              <span className="sr-only"> (opens Messenger in a new tab)</span>
-            </a>
-          </p>
-        </section>
-      </div>
-    </main>
+          <section aria-labelledby="reach-h" className="flex flex-col gap-2">
+            <h2 id="reach-h" className="font-display text-[clamp(30px,3.6vw,40px)] leading-tight font-extrabold text-baan-navy">
+              Reach Out to Us
+            </h2>
+            <p className="text-lg text-baan-muted">
+              Have questions about our services or your appointment? We&apos;re here to help.{" "}
+              <a
+                href="https://m.me/Worcestersher"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-baan-teal underline underline-offset-3 hover:text-baan-navy"
+              >
+                Send us a message
+                <span className="sr-only"> (opens Messenger in a new tab)</span>
+              </a>
+            </p>
+          </section>
+        </div>
+      </main>
+    </MinDelay>
   );
 }

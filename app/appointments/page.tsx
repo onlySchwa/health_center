@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { BookingSection } from "@/components/booking-section";
 import { PageBanner } from "@/components/page-banner";
 import frontDesk from "@/public/landing-2.jpg";
+import { MinDelay } from "@/components/min-delay";
+import AppointmentsLoading from "./loading";
 
 export const metadata: Metadata = {
   title: "Appointments — Baan Health Care",
@@ -10,9 +12,11 @@ export const metadata: Metadata = {
 
 export default function AppointmentsPage() {
   return (
-    <main className="w-full text-baan-ink">
-      <PageBanner title="Book an Appointment" image={frontDesk} alt="Residents at the front desk of the health center" />
-      <BookingSection />
-    </main>
+    <MinDelay fallback={<AppointmentsLoading />}>
+      <main className="w-full text-baan-ink">
+        <PageBanner title="Book an Appointment" image={frontDesk} alt="Residents at the front desk of the health center" />
+        <BookingSection />
+      </main>
+    </MinDelay>
   );
 }
