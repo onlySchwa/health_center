@@ -288,13 +288,15 @@ export type ActivityEntry = {
     | "created" | "status" | "edited" | "archived" | "restored" | "deleted"
     | "role_changed" | "deactivated" | "reactivated"
     | "service_added" | "service_updated"
-    | "settings_updated";
+    | "settings_updated"
+    | "email_retried";
   old_status: Status | null;
   new_status: Status | null;
   // "edited": { field: { from, to } }. "deleted": a snapshot of the appointment's details.
   // "role_changed": { from: { role, services }, to: { role, services } }.
   // "service_added": { service, active }. "service_updated": { service, changes: { field: { from, to } } }.
   // "settings_updated": { changes: { field: { from, to } } }.
+  // "email_retried": { result: "sent" | "failed" | "no_email" | "skipped", email_for: "confirmed" | "rejected" | null }.
   details: Record<string, unknown> | null;
   actor_role: "resident" | "staff" | "admin" | "system";
   actor_name: string;
@@ -350,6 +352,7 @@ export const auditActionGroups = {
   status: { label: "Status changes", actions: ["status"] },
   edited: { label: "Edited details", actions: ["edited"] },
   archive: { label: "Archived or restored", actions: ["archived", "restored"] },
+  emails: { label: "Email retries", actions: ["email_retried"] },
   deleted: { label: "Deleted", actions: ["deleted"] },
   accounts: { label: "Account changes", actions: ["role_changed", "deactivated", "reactivated"] },
   services: { label: "Service changes", actions: ["service_added", "service_updated"] },

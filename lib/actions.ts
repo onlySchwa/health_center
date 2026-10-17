@@ -215,6 +215,9 @@ async function emailStatusChange(id: number, manual = false): Promise<"sent" | "
 export async function retryStatusEmail(id: number): Promise<ActionResult> {
   if (!(await isAdmin()) || !Number.isInteger(id)) return { ok: false, error: "Not allowed." };
   const status = await emailStatusChange(id, true);
+  // Record the retry and how it went (see 0013_email_retry_audit.sql).
+  const { error: logError } = await createSupabase().rpc("admin_log_email_retry", { p_id: id, p_result: status });
+  if (logError) console.error(`Couldn't record email retry for appointment ${id}:`, logError.message);
   refresh();
   if (status === "sent" || status === "skipped") return { ok: true };
   return {
