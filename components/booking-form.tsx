@@ -3,7 +3,6 @@
 import { useAuth } from "@clerk/nextjs";
 import {
   ArrowRight,
-  CalendarDays,
   ChevronDown,
   CircleCheck,
   Lock,
@@ -18,7 +17,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { addDays, format, isWeekend, parseISO } from "date-fns";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { requestAppointment } from "@/lib/actions";
 import { services, timeSlots } from "@/lib/appointment-options";
 
@@ -33,6 +36,18 @@ const withIcon = "pl-11";
 const labelClass = "text-sm font-semibold text-baan-ink";
 const optional = <span className="ml-1 text-[13px] font-normal text-baan-muted">(optional)</span>;
 const slotIcons = [Sun, Sunset];
+
+const datePresets = [
+  { label: "Today", days: 0 },
+  { label: "Tomorrow", days: 1 },
+  { label: "In 3 days", days: 3 },
+  { label: "In a week", days: 7 },
+  { label: "In 2 weeks", days: 14 },
+];
+
+// Today in the Philippines (YYYY-MM-DD), so the calendar greys out the same past days the server rejects.
+const manilaToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+const subscribeNever = () => () => {};
 
 function Field({ id, label, icon: Icon, children, wide }: {
   id: string;
@@ -80,6 +95,16 @@ export function BookingForm({ defaults }: BookingFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const formRef = useRef<HTMLFormElement>(null);
+  // null while Next.js prerenders the page (it can't bake "today" into static HTML); the real date once in the browser.
+  const todayIso = useSyncExternalStore(subscribeNever, manilaToday, () => null);
+  const today = todayIso ? parseISO(todayIso) : null;
+  const [date, setDate] = useState<Date>();
+  const [month, setMonth] = useState<Date>();
+
+  function pickDate(day: Date) {
+    setDate(day);
+    setMonth(day);
+  }
 
   useEffect(() => {
     const form = formRef.current;
@@ -94,6 +119,10 @@ export function BookingForm({ defaults }: BookingFormProps) {
         const el = form.elements.namedItem(field);
         if (draft[field] && el && "value" in el) el.value = draft[field];
       }
+      // The date lives in state (the hidden input just mirrors it), so restore it there.
+      // sessionStorage only exists in the browser, so this can't move into useState's initializer.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (draft.date) pickDate(parseISO(draft.date));
     } catch {
       // Storage blocked or draft unreadable: start with an empty form.
     }
@@ -104,6 +133,11 @@ export function BookingForm({ defaults }: BookingFormProps) {
     if (!isLoaded || saving) return;
     const data = new FormData(e.currentTarget);
     const fields = Object.fromEntries(draftFields.map((f) => [f, String(data.get(f) ?? "")]));
+    // A hidden input can't be marked required, so check the calendar here.
+    if (!fields.date) {
+      setError("Please choose a date.");
+      return;
+    }
 
     if (isSignedIn) {
       setSaving(true);
@@ -215,9 +249,47 @@ export function BookingForm({ defaults }: BookingFormProps) {
             })}
           </div>
         </fieldset>
-        <Field id="f-date" label="Preferred date" icon={CalendarDays} wide>
-          <input id="f-date" name="date" type="date" required className={`${fieldClass} ${withIcon}`} />
-        </Field>
+        <fieldset className="col-span-full flex flex-col gap-1.5">
+          <legend className={`${labelClass} mb-1.5`}>
+            Preferred date<span className="ml-1 text-[13px] font-normal text-baan-muted">(Monday to Friday)</span>
+          </legend>
+          <input type="hidden" name="date" value={date ? format(date, "yyyy-MM-dd") : ""} />
+          {today ? (
+            <div className="mx-auto w-fit max-w-75 overflow-hidden rounded-xl border border-baan-line">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                month={month ?? today}
+                onMonthChange={setMonth}
+                startMonth={today}
+                disabled={[{ before: today }, { dayOfWeek: [0, 6] }]}
+                fixedWeeks
+                className="p-3 [--cell-size:--spacing(9.5)]"
+              />
+              <div className="flex flex-wrap gap-2 border-t border-baan-line p-3">
+                {datePresets.map((preset) => {
+                  const day = addDays(today, preset.days);
+                  return (
+                    <Button
+                      key={preset.days}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      disabled={isWeekend(day)}
+                      onClick={() => pickDate(day)}
+                    >
+                      {preset.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <Skeleton className="mx-auto h-110 w-75 max-w-full bg-baan-line" />
+          )}
+        </fieldset>
         <Field id="f-note" label={<>Anything we should know?{optional}</>} wide>
           <textarea id="f-note" name="note" rows={3} placeholder="e.g. second dose, follow-up visit" maxLength={500} className={`${fieldClass} resize-y`} />
         </Field>

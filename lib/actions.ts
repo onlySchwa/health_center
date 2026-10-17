@@ -31,7 +31,8 @@ function readAppointment(input: Record<string, unknown>) {
 
   if (!appointment.first_name) return { error: "Please enter your first name." };
   if (!appointment.last_name) return { error: "Please enter your last name." };
-  if (appointment.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(appointment.email)) {
+  // Same pattern as the database check in 0009_stricter_email_check.sql.
+  if (appointment.email && !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/.test(appointment.email)) {
     return { error: "Please enter a valid email address." };
   }
   if (appointment.phone && !/^[0-9+ -]{7,20}$/.test(appointment.phone)) {
@@ -54,6 +55,9 @@ export async function requestAppointment(input: Record<string, unknown>): Promis
   if (!appointment.email) return { ok: false, error: "Please enter your email address." };
   if (!appointment.address) return { ok: false, error: "Please enter your address." };
   if (appointment.appt_date < manilaToday()) return { ok: false, error: "Please choose today or a future date." };
+  // Residents book Monday to Friday only (admins can still set any date when editing).
+  const weekday = new Date(`${appointment.appt_date}T00:00:00Z`).getUTCDay();
+  if (weekday === 0 || weekday === 6) return { ok: false, error: "Appointments are available Monday to Friday only." };
 
   const { data, error } = await createSupabase().from("appointments").insert(appointment).select("ref").single();
   if (error) {
