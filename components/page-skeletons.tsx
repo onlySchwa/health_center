@@ -54,18 +54,6 @@ export function HeroSkeleton() {
 export function ServicesSkeleton() {
   return (
     <section className="bg-baan-mist">
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
-        {["bg-baan-orange", "bg-baan-teal", "bg-baan-navy"].map((bg) => (
-          <div key={bg} className={`${bg} flex min-h-37.5 items-center gap-4.5 px-10 py-9`}>
-            <DarkBar className="size-10 shrink-0" />
-            <div className="flex flex-col gap-2">
-              <DarkBar className="h-6 w-44" />
-              <DarkBar className="h-4 w-52" />
-            </div>
-          </div>
-        ))}
-      </div>
-
       <div className="mx-auto max-w-310 px-6 py-24">
         <div className="mb-14 flex flex-col items-center gap-3">
           <Bar className="h-[clamp(32px,4vw,46px)] w-72" />
@@ -138,34 +126,52 @@ export function BookingSkeleton() {
   );
 }
 
-export function AdvocaciesSkeleton() {
+// Mirrors the FAQ: centred heading and button, then the stack of question cards.
+export function FaqSkeleton() {
   return (
-    <section className="bg-white">
-      <div className="mx-auto flex max-w-310 flex-col gap-14 px-6 py-24">
-        <div className="flex flex-wrap items-center gap-12">
-          <div className="flex min-w-0 flex-[1_1_400px] flex-col gap-5">
-            <Bar className="h-4 w-48" />
-            <Bar className="h-[clamp(70px,8vw,100px)] w-full" />
-            <Bar className="h-5 w-full" />
-            <Bar className="h-5 w-4/5" />
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3.5">
-              {Array.from({ length: 4 }, (_, i) => (
-                <Bar key={i} className="h-6 w-48" />
-              ))}
-            </div>
-          </div>
-          <Bar className="h-105 min-w-0 flex-[1_1_460px] rounded-[18px]" />
+    <section className="bg-baan-mist">
+      <div className="mx-auto flex max-w-200 flex-col items-center gap-12 px-6 py-24">
+        <div className="flex flex-col items-center gap-4">
+          <Bar className="h-14 w-32" />
+          <Bar className="h-6 w-72 max-w-full" />
+          <Bar className="h-11 w-32 rounded-full" />
         </div>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
-          {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="flex flex-col gap-2.5">
-              <Bar className="h-65 w-full rounded-[14px]" />
-              <Bar className="h-5 w-52" />
+        <div className="flex w-full flex-col gap-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="flex items-center justify-between rounded-2xl bg-white px-6 py-5">
+              <Bar className="h-5 w-3/5" />
+              <Bar className="size-5" />
             </div>
           ))}
         </div>
-        <div className="flex justify-center">
-          <Bar className="h-14 w-60 rounded-full" />
+      </div>
+    </section>
+  );
+}
+
+// Mirrors the story slider: one large rounded photo panel with its headline, links and bars.
+export function AdvocaciesSkeleton() {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-310 px-4 py-16 sm:px-6 sm:py-20">
+        <div className="relative flex h-[clamp(560px,58vw,760px)] flex-col justify-between overflow-hidden rounded-[28px] bg-baan-navy p-6 sm:p-12">
+          <div className="flex justify-between">
+            <DarkBar className="h-9 w-48 rounded-full" />
+            <DarkBar className="h-5 w-16" />
+          </div>
+          <div className="flex flex-col gap-4">
+            <DarkBar className="h-[clamp(76px,11vw,150px)] w-full max-w-190" />
+            <DarkBar className="h-5 w-full max-w-150" />
+            <div className="flex gap-2.5 pt-2">
+              <DarkBar className="h-11 w-40 rounded-full" />
+              <DarkBar className="h-11 w-32 rounded-full" />
+            </div>
+            <div className="flex gap-2 pt-5">
+              {Array.from({ length: 6 }, (_, i) => (
+                <DarkBar key={i} className="h-[3px] flex-1" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </section>

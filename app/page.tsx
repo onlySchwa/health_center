@@ -4,14 +4,15 @@ import { AdvocaciesSection } from "@/components/advocacies-section";
 import { BookingSection } from "@/components/booking-section";
 import { ContactSection } from "@/components/contact-section";
 import { MinDelay } from "@/components/min-delay";
+import { FaqSection } from "@/components/faq-section";
 import {
   AdvocaciesSkeleton,
   BookingSkeleton,
   ContactSectionSkeleton,
+  FaqSkeleton,
   HeroSkeleton,
-  ServicesSkeleton,
 } from "@/components/page-skeletons";
-import { ServicesSection } from "@/components/services-section";
+import { QuickLinks } from "@/components/quick-links";
 import { ctaButton, eyebrow } from "@/lib/styles";
 import heroBanner from "@/public/hero-banner.jpg";
 
@@ -19,9 +20,9 @@ import heroBanner from "@/public/hero-banner.jpg";
 const homeSkeleton = (
   <main className="w-full text-baan-ink" aria-busy="true" aria-label="Loading">
     <HeroSkeleton />
-    <ServicesSkeleton />
-    <BookingSkeleton />
     <AdvocaciesSkeleton />
+    <BookingSkeleton />
+    <FaqSkeleton />
     <ContactSectionSkeleton />
   </main>
 );
@@ -65,22 +66,23 @@ export default function Home() {
                   </svg>
                   Book an appointment
                 </Link>
-                <Link href="#services" className={`${ctaButton} border-2 border-white/80 text-white`}>
+                <Link href="/services" className={`${ctaButton} border-2 border-white/80 text-white`}>
                   See our services
                 </Link>
               </div>
             </div>
           </div>
         </section>
+        <QuickLinks />
 
-        {/* 2 · Services */}
-        <ServicesSection />
+        {/* 2 · About & Advocacies */}
+        <AdvocaciesSection />
 
         {/* 3 · Book an appointment */}
         <BookingSection />
 
-        {/* 4 · About & Advocacies */}
-        <AdvocaciesSection />
+        {/* 4 · FAQ */}
+        <FaqSection />
 
         {/* 5 · Contact */}
         <ContactSection />

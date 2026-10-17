@@ -3,6 +3,7 @@
 import { useAuth } from "@clerk/nextjs";
 import {
   ArrowRight,
+  CalendarDays,
   ChevronDown,
   CircleCheck,
   Lock,
@@ -21,7 +22,7 @@ import { addDays, format, parseISO } from "date-fns";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { requestAppointment } from "@/lib/actions";
 import { timeSlots } from "@/lib/appointment-options";
 import type { Service } from "@/lib/services";
@@ -37,7 +38,7 @@ const DRAFT_KEY = "baan-booking-draft";
 const draftFields = ["email", "firstName", "lastName", "phone", "address", "service", "time", "date", "note"];
 
 const fieldClass =
-  "peer min-h-12 w-full rounded-xl border border-baan-line bg-baan-mist/60 px-3.5 py-2.5 text-base text-baan-ink transition-colors placeholder:text-[#7A9095] hover:border-[#B9C9CC] focus:border-baan-teal focus:bg-white focus:outline-none focus:ring-4 focus:ring-baan-teal/15";
+  "peer min-h-11 w-full rounded-xl border border-baan-line bg-baan-mist/60 px-3.5 py-2 text-base text-baan-ink transition-colors placeholder:text-[#7A9095] hover:border-[#B9C9CC] focus:border-baan-teal focus:bg-white focus:outline-none focus:ring-4 focus:ring-baan-teal/15";
 const withIcon = "pl-11";
 const labelClass = "text-sm font-semibold text-baan-ink";
 const optional = <span className="ml-1 text-[13px] font-normal text-baan-muted">(optional)</span>;
@@ -63,12 +64,12 @@ function Field({ id, label, icon: Icon, children, wide }: {
   wide?: boolean;
 }) {
   return (
-    <div className={`flex flex-col gap-1.5 ${wide ? "col-span-full" : ""}`}>
+    <div className={`flex flex-col gap-1 ${wide ? "col-span-full" : ""}`}>
       <label htmlFor={id} className={labelClass}>{label}</label>
       <div className="relative">
         {children}
         {Icon && (
-          <Icon aria-hidden className="pointer-events-none absolute top-3.5 left-3.5 size-5 text-[#7A9095] peer-focus:text-baan-teal" />
+          <Icon aria-hidden className="pointer-events-none absolute top-3 left-3.5 size-5 text-[#7A9095] peer-focus:text-baan-teal" />
         )}
       </div>
     </div>
@@ -77,7 +78,7 @@ function Field({ id, label, icon: Icon, children, wide }: {
 
 function SectionHeading({ step, title }: { step: number; title: string }) {
   return (
-    <div className="col-span-full flex items-center gap-3 pt-2">
+    <div className="col-span-full flex items-center gap-3 pt-1">
       <span className="flex size-7 flex-none items-center justify-center rounded-full bg-baan-teal/10 text-sm font-bold text-baan-teal">
         {step}
       </span>
@@ -110,6 +111,7 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
   const today = todayIso ? parseISO(todayIso) : null;
   const [date, setDate] = useState<Date>();
   const [month, setMonth] = useState<Date>();
+  const [dateOpen, setDateOpen] = useState(false);
   const [serviceName, setServiceName] = useState(services[0]?.name ?? "");
   const [slot, setSlot] = useState("");
   const service = services.find((s) => s.name === serviceName) ?? services[0];
@@ -235,7 +237,7 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
 
   return (
     <form ref={formRef} aria-labelledby="form-h" onSubmit={handleSubmit} className={`${card} overflow-hidden`}>
-      <div className="border-b border-baan-line bg-linear-to-br from-baan-mist to-white px-7 py-6 sm:px-9">
+      <div className="border-b border-baan-line bg-linear-to-br from-baan-mist to-white px-7 py-5 sm:px-9">
         <p className="text-xs font-bold tracking-[0.18em] text-baan-teal uppercase">Book a visit</p>
         <h3 id="form-h" className="mt-1 font-display text-[26px] font-bold text-baan-navy">
           Request your appointment
@@ -243,7 +245,7 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
         <p className="mt-1 text-[15px] text-baan-muted">It takes about a minute. We&apos;ll confirm by email.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-x-5 gap-y-4.5 px-7 py-7 sm:grid-cols-2 sm:px-9">
+      <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 px-7 py-6 sm:grid-cols-2 sm:px-9">
         <SectionHeading step={1} title="Your details" />
         <Field id="f-email" label="Email address" icon={Mail} wide>
           <input id="f-email" name="email" type="email" autoComplete="email" placeholder="juan@example.com" defaultValue={defaults?.email} maxLength={254} required className={`${fieldClass} ${withIcon}`} />
@@ -275,7 +277,7 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
               <option key={s.name}>{s.name}</option>
             ))}
           </select>
-          <ChevronDown aria-hidden className="pointer-events-none absolute top-3.5 right-3.5 size-5 text-[#7A9095]" />
+          <ChevronDown aria-hidden className="pointer-events-none absolute top-3 right-3.5 size-5 text-[#7A9095]" />
         </Field>
         {service?.requirements && (
           <p id="f-svc-req" className="col-span-full -mt-2 rounded-xl bg-baan-teal/5 px-4 py-3 text-sm text-baan-ink">
@@ -292,7 +294,7 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
               return (
                 <label
                   key={t}
-                  className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-baan-line bg-baan-mist/60 px-4 py-3 transition-colors hover:border-[#B9C9CC] has-checked:border-baan-teal has-checked:bg-baan-teal/5 has-checked:ring-4 has-checked:ring-baan-teal/15 has-focus-visible:ring-4 has-focus-visible:ring-baan-teal/25"
+                  className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-baan-line bg-baan-mist/60 px-4 py-2 transition-colors hover:border-[#B9C9CC] has-checked:border-baan-teal has-checked:bg-baan-teal/5 has-checked:ring-4 has-checked:ring-baan-teal/15 has-focus-visible:ring-4 has-focus-visible:ring-baan-teal/25"
                 >
                   <input type="radio" name="time" value={t} checked={timeSlot === t} onChange={() => setSlot(t)} className="sr-only" />
                   <Icon aria-hidden className="size-5 flex-none text-baan-teal" />
@@ -305,53 +307,69 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
             })}
           </div>
         </fieldset>
-        <fieldset className="col-span-full flex flex-col gap-1.5">
-          <legend className={`${labelClass} mb-1.5`}>
+        <div className="col-span-full flex flex-col gap-1.5">
+          <label htmlFor="f-date" className={labelClass}>
             Preferred date
             <span className="ml-1 text-[13px] font-normal text-baan-muted">
               ({service?.days.length === 5 ? "Monday to Friday" : service?.days.map((d) => dayNames[d]).join(", ")})
             </span>
-          </legend>
+          </label>
           <input type="hidden" name="date" value={date ? format(date, "yyyy-MM-dd") : ""} />
-          {today ? (
-            <div className="mx-auto w-fit max-w-75 overflow-hidden rounded-xl border border-baan-line">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                month={month ?? today}
-                onMonthChange={setMonth}
-                startMonth={today}
-                endMonth={lastDay ?? undefined}
-                disabled={[{ before: today }, (day) => !offeredOn(day)]}
-                fixedWeeks
-                className="p-3 [--cell-size:--spacing(9.5)]"
-              />
-              <div className="flex flex-wrap gap-2 border-t border-baan-line p-3">
-                {datePresets.map((preset) => {
-                  const day = addDays(today, preset.days);
-                  return (
-                    <Button
-                      key={preset.days}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      disabled={!offeredOn(day)}
-                      onClick={() => pickDate(day)}
-                    >
-                      {preset.label}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <Skeleton className="mx-auto h-110 w-75 max-w-full bg-baan-line" />
-          )}
-        </fieldset>
+          <Popover open={dateOpen} onOpenChange={setDateOpen}>
+            {/* Disabled until the browser knows today's date (see todayIso). */}
+            <PopoverTrigger
+              id="f-date"
+              disabled={!today}
+              className={`${fieldClass} flex items-center justify-between text-left disabled:cursor-wait sm:max-w-80 ${date ? "" : "text-[#7A9095]"}`}
+            >
+              {date ? format(date, "MM/dd/yyyy") : "mm/dd/yyyy"}
+              <CalendarDays aria-hidden className="size-5 flex-none text-baan-ink" />
+            </PopoverTrigger>
+            {/* Fixed to the calendar's width so the presets wrap into two rows under it. */}
+            {today && (
+              <PopoverContent align="start" className="w-75 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={(day) => {
+                    setDate(day);
+                    if (day) setDateOpen(false);
+                  }}
+                  month={month ?? today}
+                  onMonthChange={setMonth}
+                  startMonth={today}
+                  endMonth={lastDay ?? undefined}
+                  disabled={[{ before: today }, (day) => !offeredOn(day)]}
+                  fixedWeeks
+                  className="mx-auto p-3 [--cell-size:--spacing(9.5)]"
+                />
+                <div className="flex flex-wrap gap-2 border-t border-baan-line p-3">
+                  {datePresets.map((preset) => {
+                    const day = addDays(today, preset.days);
+                    return (
+                      <Button
+                        key={preset.days}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        disabled={!offeredOn(day)}
+                        onClick={() => {
+                          pickDate(day);
+                          setDateOpen(false);
+                        }}
+                      >
+                        {preset.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            )}
+          </Popover>
+        </div>
         <Field id="f-note" label={<>Anything we should know?{optional}</>} wide>
-          <textarea id="f-note" name="note" rows={3} placeholder="e.g. second dose, follow-up visit" maxLength={500} className={`${fieldClass} resize-y`} />
+          <textarea id="f-note" name="note" rows={2} placeholder="e.g. second dose, follow-up visit" maxLength={500} className={`${fieldClass} resize-y`} />
         </Field>
 
         {error && (
