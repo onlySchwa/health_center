@@ -7,6 +7,8 @@ import { ResidentDashboardSkeleton } from "@/components/page-skeletons";
 import { ResidentDashboard } from "@/components/resident-dashboard";
 import { isAdmin } from "@/lib/admin";
 import { formatApptDate, getMyAppointments, getStaffAccess, manilaToday } from "@/lib/appointments";
+import { activeServices, getServices } from "@/lib/services";
+import { getBookingRules } from "@/lib/settings";
 import DashboardLoading from "./loading";
 
 export const metadata: Metadata = {
@@ -33,7 +35,7 @@ async function DashboardContent() {
   if (!userId) return redirectToSignIn();
 
   // A database problem shouldn't take down the whole page: log it and show a notice instead.
-  const [user, rows, staff, admin] = await Promise.all([
+  const [user, rows, staff, admin, services, rules] = await Promise.all([
     currentUser(),
     getMyAppointments().catch((error) => {
       console.error(error);
@@ -41,6 +43,11 @@ async function DashboardContent() {
     }),
     getStaffAccess(),
     isAdmin(),
+    getServices().then(activeServices, (error) => {
+      console.error(error);
+      return [];
+    }),
+    getBookingRules(),
   ]);
   await connection(); // "today" depends on the current time, so compute it per request
   const today = manilaToday();
@@ -61,6 +68,8 @@ async function DashboardContent() {
       loadFailed={rows === null}
       isStaff={staff !== null}
       isAdmin={admin}
+      services={services.map(({ name, requirements, days, timeSlots }) => ({ name, requirements, days, timeSlots }))}
+      rules={rules}
       profile={{
         firstName: user?.firstName ?? "",
         lastName: user?.lastName ?? "",

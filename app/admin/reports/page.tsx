@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { MinDelay } from "@/components/min-delay";
 import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
 import { isAdmin } from "@/lib/admin";
-import { services, statusStyle } from "@/lib/appointment-options";
+import { statusStyle } from "@/lib/appointment-options";
 import { manilaToday } from "@/lib/appointments";
 import {
   filtersQuery,
@@ -16,6 +16,7 @@ import {
   reportStatuses,
   summarize,
 } from "@/lib/reports";
+import { getServices } from "@/lib/services";
 import AdminLoading from "../loading";
 
 export const metadata: Metadata = {
@@ -46,12 +47,17 @@ async function ReportsContent({ searchParams }: { searchParams: PageProps<"/admi
   if (!(await isAdmin())) notFound();
 
   await connection(); // the default range ends today
-  const filters = parseReportFilters(await searchParams, manilaToday());
+  const services = await getServices().catch((error) => {
+    console.error(error);
+    return [];
+  });
+  const serviceNames = services.map((s) => s.name);
+  const filters = parseReportFilters(await searchParams, manilaToday(), serviceNames);
   const rows = await getReportRows(filters).catch((error) => {
     console.error(error);
     return null;
   });
-  const report = rows && summarize(rows, filters);
+  const report = rows && summarize(rows, filters, serviceNames);
   const groupLabel = groupings.find((g) => g.id === filters.group)!.label;
 
   return (
@@ -104,7 +110,10 @@ async function ReportsContent({ searchParams }: { searchParams: PageProps<"/admi
           <select name="service" defaultValue={filters.service} className={field}>
             <option value="">All services</option>
             {services.map((s) => (
-              <option key={s}>{s}</option>
+              <option key={s.name} value={s.name}>
+                {s.name}
+                {s.active ? "" : " (disabled)"}
+              </option>
             ))}
           </select>
         </label>

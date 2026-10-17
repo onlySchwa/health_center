@@ -115,6 +115,41 @@ export async function getResidentAppointments(userId: string) {
   return data as ResidentAppointmentRow[];
 }
 
+// How the confirmed/rejected emails to residents went, for Settings → Email delivery.
+export async function getEmailDelivery() {
+  const supabase = createSupabase();
+  const [sent, failed, noEmail, last] = await Promise.all([
+    countAppointments().eq("email_status", "sent"),
+    countAppointments().eq("email_status", "failed"),
+    countAppointments().eq("email_status", "no_email"),
+    supabase
+      .from("appointments")
+      .select("ref, email_error, updated_at")
+      .is("archived_at", null)
+      .eq("email_status", "failed")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const failedResult = [sent, failed, noEmail, last].find((r) => r.error);
+  if (failedResult?.error) throw new Error(`Could not load email delivery: ${failedResult.error.message}`);
+  return {
+    sent: sent.count ?? 0,
+    failed: failed.count ?? 0,
+    noEmail: noEmail.count ?? 0,
+    lastFailure: last.data as { ref: string; email_error: string | null; updated_at: string } | null,
+  };
+}
+
+// Number of appointments per service name, archived ones included, for the services page.
+export async function getAppointmentCountsByService() {
+  const { data, error } = await createSupabase().from("appointments").select("service").limit(10000);
+  if (error) throw new Error(`Could not count appointments: ${error.message}`);
+  const counts = new Map<string, number>();
+  for (const { service } of data) counts.set(service, (counts.get(service) ?? 0) + 1);
+  return counts;
+}
+
 // Number of appointments per resident (user id), for the residents list.
 export async function getAppointmentCountsByResident() {
   const { data, error } = await createSupabase().from("appointments").select("user_id").limit(10000);
@@ -249,11 +284,17 @@ export async function getAdminAppointment(id: number) {
 // Each entry is about an appointment (appointment_ref set) or, for account actions, an account (target set).
 export type ActivityEntry = {
   id: number;
-  action: "created" | "status" | "edited" | "archived" | "restored" | "deleted" | "role_changed" | "deactivated" | "reactivated";
+  action:
+    | "created" | "status" | "edited" | "archived" | "restored" | "deleted"
+    | "role_changed" | "deactivated" | "reactivated"
+    | "service_added" | "service_updated"
+    | "settings_updated";
   old_status: Status | null;
   new_status: Status | null;
   // "edited": { field: { from, to } }. "deleted": a snapshot of the appointment's details.
   // "role_changed": { from: { role, services }, to: { role, services } }.
+  // "service_added": { service, active }. "service_updated": { service, changes: { field: { from, to } } }.
+  // "settings_updated": { changes: { field: { from, to } } }.
   details: Record<string, unknown> | null;
   actor_role: "resident" | "staff" | "admin" | "system";
   actor_name: string;
@@ -267,21 +308,14 @@ export type ActivityEntry = {
 export const isAccountAction = (action: ActivityEntry["action"]) =>
   action === "role_changed" || action === "deactivated" || action === "reactivated";
 
-// Latest 100 entries. Names for the people involved come from Clerk, 100 ids per call.
-// With appointmentId: that appointment's history, oldest first.
-export async function getActivityLog({ staffOnly = false, appointmentId }: { staffOnly?: boolean; appointmentId?: number } = {}): Promise<ActivityEntry[]> {
-  let query = createSupabase()
-    .from("audit_log")
-    .select(
-      "id, action, old_status, new_status, details, actor_id, actor_role, created_at, appointment_ref, target_user_id, appointment:appointments(resident_name, service)",
-    );
-  if (staffOnly) query = query.in("actor_role", ["staff", "admin"]);
-  if (appointmentId !== undefined) query = query.eq("appointment_id", appointmentId);
+const auditColumns =
+  "id, action, old_status, new_status, details, actor_id, actor_role, created_at, appointment_ref, target_user_id, appointment:appointments(resident_name, service)";
 
-  const { data, error } = await query.order("created_at", { ascending: appointmentId !== undefined }).limit(100);
-  if (error) throw new Error(`Could not load activity log: ${error.message}`);
+type AuditRow = { actor_id: string | null; target_user_id: string | null; appointment: unknown } & Record<string, unknown>;
 
-  const ids = [...new Set(data.flatMap((r) => [r.actor_id, r.target_user_id]).filter((id): id is string => Boolean(id)))];
+// Names for the people in each entry come from Clerk, 100 ids per call.
+async function withNames(rows: AuditRow[]): Promise<ActivityEntry[]> {
+  const ids = [...new Set(rows.flatMap((r) => [r.actor_id, r.target_user_id]).filter((id): id is string => Boolean(id)))];
   const names = new Map<string, string>();
   const client = await clerkClient();
   for (let i = 0; i < ids.length; i += 100) {
@@ -291,10 +325,75 @@ export async function getActivityLog({ staffOnly = false, appointmentId }: { sta
     }
   }
 
-  return data.map(({ actor_id, target_user_id, appointment, ...row }) => ({
+  return rows.map(({ actor_id, target_user_id, appointment, ...row }) => ({
     ...row,
     actor_name: actor_id ? (names.get(actor_id) ?? "Deleted account") : "Supabase (manual edit)",
     target_name: target_user_id ? (names.get(target_user_id) ?? "Deleted account") : null,
-    appointment: appointment as unknown as ActivityEntry["appointment"],
+    appointment: appointment as ActivityEntry["appointment"],
   })) as ActivityEntry[];
+}
+
+// One appointment's history, oldest first.
+export async function getActivityLog({ appointmentId }: { appointmentId: number }): Promise<ActivityEntry[]> {
+  const { data, error } = await createSupabase()
+    .from("audit_log")
+    .select(auditColumns)
+    .eq("appointment_id", appointmentId)
+    .order("created_at")
+    .limit(100);
+  if (error) throw new Error(`Could not load activity log: ${error.message}`);
+  return withNames(data as AuditRow[]);
+}
+
+export const auditActionGroups = {
+  booked: { label: "Booked", actions: ["created"] },
+  status: { label: "Status changes", actions: ["status"] },
+  edited: { label: "Edited details", actions: ["edited"] },
+  archive: { label: "Archived or restored", actions: ["archived", "restored"] },
+  deleted: { label: "Deleted", actions: ["deleted"] },
+  accounts: { label: "Account changes", actions: ["role_changed", "deactivated", "reactivated"] },
+  services: { label: "Service changes", actions: ["service_added", "service_updated"] },
+  settings: { label: "Settings changes", actions: ["settings_updated"] },
+} satisfies Record<string, { label: string; actions: ActivityEntry["action"][] }>;
+
+export type AuditFilters = {
+  who?: "team" | "residents";
+  group?: keyof typeof auditActionGroups;
+  from?: string; // YYYY-MM-DD, Philippine time
+  to?: string;
+  search?: string; // appointment ID, or a person's name or email
+  page: number; // from 1
+};
+
+export const AUDIT_PAGE_SIZE = 50;
+
+const nextDay = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+
+// One page of the audit log, newest first, plus how many entries match in total.
+export async function getAuditLog(f: AuditFilters): Promise<{ entries: ActivityEntry[]; total: number }> {
+  let query = createSupabase().from("audit_log").select(auditColumns, { count: "exact" });
+  if (f.who === "team") query = query.in("actor_role", ["staff", "admin"]);
+  if (f.who === "residents") query = query.eq("actor_role", "resident");
+  if (f.group) query = query.in("action", auditActionGroups[f.group].actions);
+  if (f.from) query = query.gte("created_at", `${f.from}T00:00:00+08:00`);
+  if (f.to) query = query.lt("created_at", `${nextDay(f.to)}T00:00:00+08:00`);
+
+  // Letters, digits, spaces, hyphens, dots and @ only, so the text can't alter the filter.
+  const term = (f.search ?? "").replace(/[^\p{L}\p{N} .@-]/gu, "").trim().slice(0, 60);
+  if (term) {
+    // Matches the appointment ID, or anyone (actor or changed account) whose name or email matches.
+    const client = await clerkClient();
+    const { data: people } = await client.users.getUserList({ query: term, limit: 100 });
+    const ids = people.map((u) => u.id).filter((id) => /^[\w-]+$/.test(id));
+    const peopleFilter = ids.length ? `,actor_id.in.(${ids.join(",")}),target_user_id.in.(${ids.join(",")})` : "";
+    query = query.or(`appointment_ref.ilike."%${term}%"${peopleFilter}`);
+  }
+
+  const start = (f.page - 1) * AUDIT_PAGE_SIZE;
+  const { data, error, count } = await query
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(start, start + AUDIT_PAGE_SIZE - 1);
+  if (error) throw new Error(`Could not load audit log: ${error.message}`);
+  return { entries: await withNames(data as AuditRow[]), total: count ?? 0 };
 }

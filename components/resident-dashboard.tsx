@@ -3,9 +3,10 @@
 import { useClerk } from "@clerk/nextjs";
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { BookingForm } from "@/components/booking-form";
+import { BookingForm, type BookingService } from "@/components/booking-form";
 import { cancelAppointment } from "@/lib/actions";
 import { statusStyle, type Status } from "@/lib/appointment-options";
+import type { BookingRules } from "@/lib/settings";
 
 export type DashboardAppointment = {
   id: number;
@@ -29,9 +30,11 @@ type ResidentDashboardProps = {
   loadFailed: boolean;
   isStaff: boolean;
   isAdmin: boolean;
+  services: BookingService[];
+  rules: BookingRules;
 };
 
-export function ResidentDashboard({ profile, appointments, loadFailed, isStaff, isAdmin }: ResidentDashboardProps) {
+export function ResidentDashboard({ profile, appointments, loadFailed, isStaff, isAdmin, services, rules }: ResidentDashboardProps) {
   const { openUserProfile } = useClerk();
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -230,6 +233,8 @@ export function ResidentDashboard({ profile, appointments, loadFailed, isStaff, 
       {/* Book from dashboard */}
       <section id="book-new" aria-label="Book a new appointment" className="scroll-mt-6 flex flex-wrap rounded-[20px] bg-baan-navy p-6 sm:p-10">
         <BookingForm
+          services={services}
+          rules={rules}
           defaults={{ firstName: profile.firstName, lastName: profile.lastName, email: profile.email, phone: profile.phone }}
         />
       </section>

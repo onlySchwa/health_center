@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageBanner } from "@/components/page-banner";
 import heroBanner from "@/public/hero-banner.jpg";
 import { MinDelay } from "@/components/min-delay";
+import { getSettings } from "@/lib/settings";
 import ContactLoading from "./loading";
 
 export const metadata: Metadata = {
@@ -14,7 +15,12 @@ const mapEmbed =
 const directions =
   "https://www.google.com/maps/dir/?api=1&destination=BARANGAY%20BAAN%20KM.3%20HEALTH%20CENTER%2C%20Butuan%20City";
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  // Clinic details as admins set them (Admin → Settings).
+  const s = await getSettings().catch((error) => {
+    console.error(error);
+    return null;
+  });
   return (
     <MinDelay fallback={<ContactLoading />}>
       <main className="w-full bg-baan-mist text-baan-ink">
@@ -37,8 +43,18 @@ export default function ContactPage() {
                 />
                 <figcaption className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
                   <div className="min-w-0">
-                    <p className="font-bold tracking-[0.04em] text-baan-navy uppercase">Barangay Baan KM 3 Health Center</p>
-                    <p className="text-baan-muted">Baan KM 3, Butuan City</p>
+                    <p className="font-bold tracking-[0.04em] text-baan-navy uppercase">
+                      {s?.clinicName ?? "Baan KM 3 Barangay Health Center"}
+                    </p>
+                    <p className="text-baan-muted">{s?.address ?? "Baan KM 3, Butuan City"}</p>
+                    {(s?.clinicDays || s?.clinicHours) && (
+                      <p className="text-baan-muted">{[s.clinicDays, s.clinicHours].filter(Boolean).join(" · ")}</p>
+                    )}
+                    {s?.phone && (
+                      <a href={`tel:${s.phone.replace(/\s+/g, "")}`} className="font-semibold text-baan-teal hover:underline">
+                        {s.phone}
+                      </a>
+                    )}
                   </div>
                   <a
                     href={directions}
@@ -64,15 +80,17 @@ export default function ContactPage() {
             </h2>
             <p className="text-lg text-baan-muted">
               Have questions about our services or your appointment? We&apos;re here to help.{" "}
-              <a
-                href="https://m.me/Worcestersher"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-baan-teal underline underline-offset-3 hover:text-baan-navy"
-              >
-                Send us a message
-                <span className="sr-only"> (opens Messenger in a new tab)</span>
-              </a>
+              {s?.messengerUrl && (
+                <a
+                  href={s.messengerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-baan-teal underline underline-offset-3 hover:text-baan-navy"
+                >
+                  Send us a message
+                  <span className="sr-only"> (opens Messenger in a new tab)</span>
+                </a>
+              )}
             </p>
           </section>
         </div>

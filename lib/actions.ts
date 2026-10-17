@@ -1,12 +1,14 @@
 "use server";
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { refresh } from "next/cache";
+import { refresh, updateTag } from "next/cache";
 import { after } from "next/server";
 import { isAdmin, type AccountRole } from "@/lib/admin";
-import { sendAppointmentEmail } from "@/lib/appointment-email";
-import { services, statusStyle, timeSlots } from "@/lib/appointment-options";
+import { sendAppointmentEmail, sendTestEmail } from "@/lib/appointment-email";
+import { statusStyle, timeSlots } from "@/lib/appointment-options";
 import { getStaffAccess, manilaToday } from "@/lib/appointments";
+import { getServices, SERVICES_TAG } from "@/lib/services";
+import { getSettings, SETTINGS_TAG } from "@/lib/settings";
 import { createSupabase } from "@/lib/supabase";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -39,7 +41,7 @@ function readAppointment(input: Record<string, unknown>) {
     return { error: "Please enter a valid mobile number." };
   }
   if (appointment.address && appointment.address.length < 5) return { error: "Please enter your full address." };
-  if (!services.includes(appointment.service)) return { error: "Please choose a service." };
+  if (!appointment.service) return { error: "Please choose a service." };
   if (!timeSlots.includes(appointment.time_slot)) return { error: "Please choose a time." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(appointment.appt_date)) return { error: "Please choose a date." };
   return { appointment };
@@ -54,36 +56,66 @@ export async function requestAppointment(input: Record<string, unknown>): Promis
   const { appointment } = result;
   if (!appointment.email) return { ok: false, error: "Please enter your email address." };
   if (!appointment.address) return { ok: false, error: "Please enter your address." };
-  if (appointment.appt_date < manilaToday()) return { ok: false, error: "Please choose today or a future date." };
-  // Residents book Monday to Friday only (admins can still set any date when editing).
-  const weekday = new Date(`${appointment.appt_date}T00:00:00Z`).getUTCDay();
-  if (weekday === 0 || weekday === 6) return { ok: false, error: "Appointments are available Monday to Friday only." };
 
-  const { data, error } = await createSupabase().from("appointments").insert(appointment).select("ref").single();
+  // Service days and times, same-day, days ahead, closed dates and full slots: one database function
+  // decides (see 0012_settings.sql) and the insert policy runs it again. Admins can set any date when editing.
+  const supabase = createSupabase();
+  const { data: ruleError, error: ruleCheckError } = await supabase.rpc("booking_rule_error", {
+    p_service: appointment.service,
+    p_date: appointment.appt_date,
+    p_slot: appointment.time_slot,
+  });
+  if (ruleCheckError) console.error("booking_rule_error failed:", ruleCheckError.message);
+  if (ruleError) return { ok: false, error: ruleError };
+
+  const { data, error } = await supabase.from("appointments").insert(appointment).select("ref").single();
   if (error) {
     console.error("requestAppointment failed:", error.message);
     return { ok: false, error: "We couldn't save your request. Please try again." };
   }
 
-  // Email the resident a copy after responding, so a slow or failed email never holds up the booking.
+  // Emails go out after responding, so a slow or failed email never holds up the booking.
+  const settings = await getSettings();
   const email = appointment.email;
+  const details = {
+    firstName: appointment.first_name,
+    fullName: `${appointment.first_name} ${appointment.last_name}`,
+    ref: data.ref,
+    service: appointment.service,
+    apptDate: appointment.appt_date,
+    timeSlot: appointment.time_slot,
+    phone: appointment.phone,
+    address: appointment.address,
+    note: appointment.note,
+  };
   after(async () => {
-    const sent = await sendAppointmentEmail("received", {
-      to: email,
-      firstName: appointment.first_name,
-      fullName: `${appointment.first_name} ${appointment.last_name}`,
-      ref: data.ref,
-      service: appointment.service,
-      apptDate: appointment.appt_date,
-      timeSlot: appointment.time_slot,
-      phone: appointment.phone,
-      address: appointment.address,
-      note: appointment.note,
-    });
-    if (!sent.ok) console.error(`Request-received email for ${data.ref} not sent:`, sent.error);
+    if (settings.emailOnRequest) {
+      const sent = await sendAppointmentEmail("received", { to: email, ...details });
+      if (!sent.ok) console.error(`Request-received email for ${data.ref} not sent:`, sent.error);
+    }
+    if (settings.alertNewRequests) {
+      for (const to of await adminEmails()) {
+        const sent = await sendAppointmentEmail("alert", { to, residentEmail: email, ...details });
+        if (!sent.ok) console.error(`New-request alert for ${data.ref} to an admin not sent:`, sent.error);
+      }
+    }
   });
   refresh();
   return { ok: true };
+}
+
+// Every admin's primary email address, from Clerk.
+async function adminEmails() {
+  const client = await clerkClient();
+  const emails: string[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, totalCount } = await client.users.getUserList({ limit: 500, offset });
+    for (const u of data) {
+      const email = u.primaryEmailAddress?.emailAddress;
+      if (u.publicMetadata.role === "admin" && !u.banned && email) emails.push(email);
+    }
+    if (data.length === 0 || offset + data.length >= totalCount) return emails;
+  }
 }
 
 export async function cancelAppointment(id: number): Promise<ActionResult> {
@@ -139,7 +171,9 @@ export async function reviewAppointment(id: number, status: "confirmed" | "rejec
 // Emails the resident that their request was confirmed or rejected, at most once per decision,
 // and records the outcome (see 0008_status_emails.sql). Skips other statuses, past dates, and
 // decisions already emailed.
-async function emailStatusChange(id: number): Promise<"sent" | "failed" | "no_email" | "skipped"> {
+// Automatic sends follow Settings → "Confirmed or rejected" emails; an admin's manual resend always tries.
+async function emailStatusChange(id: number, manual = false): Promise<"sent" | "failed" | "no_email" | "skipped"> {
+  if (!manual && !(await getSettings()).emailOnDecision) return "skipped";
   const supabase = createSupabase();
   const { data: a, error } = await supabase
     .from("appointments")
@@ -180,7 +214,7 @@ async function emailStatusChange(id: number): Promise<"sent" | "failed" | "no_em
 
 export async function retryStatusEmail(id: number): Promise<ActionResult> {
   if (!(await isAdmin()) || !Number.isInteger(id)) return { ok: false, error: "Not allowed." };
-  const status = await emailStatusChange(id);
+  const status = await emailStatusChange(id, true);
   refresh();
   if (status === "sent" || status === "skipped") return { ok: true };
   return {
@@ -199,6 +233,8 @@ export async function adminUpdateAppointment(id: number, input: Record<string, u
   if (!Object.hasOwn(statusStyle, status)) return { ok: false, error: "Please choose a status." };
 
   const a = result.appointment;
+  // Any service on record, disabled ones included, so old appointments stay editable.
+  if (!(await getServices()).some((s) => s.name === a.service)) return { ok: false, error: "Please choose a service." };
   const { error } = await createSupabase().rpc("admin_update_appointment", {
     p_id: id,
     p_first_name: a.first_name,
@@ -272,7 +308,8 @@ export async function setAccountRole(userId: string, role: unknown, staffService
   const denied = await checkAccountChange(userId);
   if (denied) return { ok: false, error: denied };
   if (!roles.includes(role as AccountRole)) return { ok: false, error: "Please choose a role." };
-  const picked = Array.isArray(staffServices) ? services.filter((s) => staffServices.includes(s)) : [];
+  const names = (await getServices()).map((s) => s.name);
+  const picked = Array.isArray(staffServices) ? names.filter((s) => staffServices.includes(s)) : [];
   if (role === "staff" && picked.length === 0) return { ok: false, error: "Choose at least one service for this staff member." };
 
   const client = await clerkClient();
@@ -314,4 +351,105 @@ export async function setAccountActive(userId: string, active: boolean): Promise
   return logged
     ? { ok: true }
     : { ok: false, error: `The account was ${active ? "reactivated" : "deactivated"}, but it couldn't be recorded in the audit log.` };
+}
+
+// Adds a service, or updates one's description, requirements, schedule and active flag.
+// Names are fixed once created (appointments and staff assignments refer to them), and the
+// database function checks the admin role and writes the audit entry (see 0011_services.sql).
+export async function saveService(input: Record<string, unknown>, isNew: boolean): Promise<ActionResult> {
+  if (!(await isAdmin()) || typeof isNew !== "boolean") return { ok: false, error: "Not allowed." };
+
+  const name = text(input.name, 60);
+  const days = Array.isArray(input.days) ? [1, 2, 3, 4, 5].filter((d) => (input.days as unknown[]).includes(d)) : [];
+  const slots = Array.isArray(input.timeSlots) ? timeSlots.filter((t) => (input.timeSlots as unknown[]).includes(t)) : [];
+  if (name.length < 3) return { ok: false, error: "Please enter a service name (at least 3 characters)." };
+  if (days.length === 0) return { ok: false, error: "Choose at least one day." };
+  if (slots.length === 0) return { ok: false, error: "Choose at least one time slot." };
+
+  const existing = (await getServices()).find((s) => s.name.toLowerCase() === name.toLowerCase());
+  if (isNew && existing) return { ok: false, error: "A service with that name already exists." };
+  if (!isNew && !existing) return { ok: false, error: "That service no longer exists." };
+
+  const { error } = await createSupabase().rpc("admin_save_service", {
+    p_name: isNew ? name : existing!.name,
+    p_is_new: isNew,
+    p_description: text(input.description, 300),
+    p_requirements: text(input.requirements, 300),
+    p_days: days,
+    p_time_slots: slots,
+    p_active: input.active !== false,
+  });
+  if (error) {
+    console.error("saveService failed:", error.message);
+    return { ok: false, error: "This service couldn't be saved." };
+  }
+  updateTag(SERVICES_TAG);
+  refresh();
+  return { ok: true };
+}
+
+const optionalLimit = (value: unknown, max: number) => {
+  if (value === "" || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 1 && n <= max ? n : undefined;
+};
+
+// Saves clinic details, booking rules and email switches. The database function checks the
+// admin role, validates every value and writes the audit entry (see 0012_settings.sql).
+export async function saveSettings(input: Record<string, unknown>): Promise<ActionResult> {
+  if (!(await isAdmin())) return { ok: false, error: "Not allowed." };
+
+  const phone = text(input.phone, 20);
+  if (phone && !/^[0-9+ -]{7,20}$/.test(phone)) return { ok: false, error: "Please enter a valid phone number." };
+  const facebookUrl = text(input.facebookUrl, 200);
+  const messengerUrl = text(input.messengerUrl, 200);
+  for (const url of [facebookUrl, messengerUrl]) {
+    if (url && !/^https:\/\/\S+$/.test(url)) return { ok: false, error: "Links must start with https://" };
+  }
+  const maxDaysAhead = optionalLimit(input.maxDaysAhead, 365);
+  const maxPerSlot = optionalLimit(input.maxPerSlot, 500);
+  if (maxDaysAhead === undefined) return { ok: false, error: "Days ahead must be a whole number from 1 to 365, or blank." };
+  if (maxPerSlot === undefined) return { ok: false, error: "Bookings per slot must be a whole number from 1 to 500, or blank." };
+  const closedDates = Array.isArray(input.closedDates)
+    ? [...new Set(input.closedDates.filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)))]
+    : [];
+  const clinicName = text(input.clinicName, 100);
+  if (clinicName.length < 3) return { ok: false, error: "Please enter the clinic's name." };
+
+  const { error } = await createSupabase().rpc("admin_save_settings", {
+    p: {
+      clinic_name: clinicName,
+      address: text(input.address, 200),
+      clinic_days: text(input.clinicDays, 100),
+      clinic_hours: text(input.clinicHours, 100),
+      phone,
+      facebook_url: facebookUrl,
+      messenger_url: messengerUrl,
+      max_days_ahead: maxDaysAhead,
+      max_per_slot: maxPerSlot,
+      allow_same_day: input.allowSameDay === true,
+      closed_dates: closedDates,
+      email_on_request: input.emailOnRequest === true,
+      email_on_decision: input.emailOnDecision === true,
+      alert_new_requests: input.alertNewRequests === true,
+    },
+  });
+  if (error) {
+    console.error("saveSettings failed:", error.message);
+    return { ok: false, error: "The settings couldn't be saved." };
+  }
+  updateTag(SETTINGS_TAG);
+  refresh();
+  return { ok: true };
+}
+
+// Sends a test email to the signed-in admin, to check Gmail sending works.
+export async function sendAdminTestEmail(): Promise<ActionResult & { to?: string }> {
+  if (!(await isAdmin())) return { ok: false, error: "Not allowed." };
+  const { userId } = await auth();
+  const user = await (await clerkClient()).users.getUser(userId!);
+  const to = user.primaryEmailAddress?.emailAddress;
+  if (!to) return { ok: false, error: "Your account has no email address." };
+  const sent = await sendTestEmail(to);
+  return sent.ok ? { ok: true, to } : { ok: false, error: `Gmail didn't send it: ${sent.error}` };
 }

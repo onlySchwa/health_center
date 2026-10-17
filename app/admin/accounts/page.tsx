@@ -8,6 +8,7 @@ import { AccountActions } from "@/components/account-actions";
 import { MinDelay } from "@/components/min-delay";
 import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
 import { formatTimestamp, getAccounts, isAdmin, type Account } from "@/lib/admin";
+import { getServices } from "@/lib/services";
 import AdminLoading from "../loading";
 
 export const metadata: Metadata = {
@@ -66,10 +67,19 @@ async function AccountsContent({ searchParams }: { searchParams: PageProps<"/adm
   const q = typeof params.q === "string" ? params.q.slice(0, 60) : "";
   await connection(); // the list reflects live Clerk accounts
 
-  const accounts = await getAccounts().catch((error) => {
-    console.error(error);
-    return null;
-  });
+  const [accounts, serviceNames] = await Promise.all([
+    getAccounts().catch((error) => {
+      console.error(error);
+      return null;
+    }),
+    getServices().then(
+      (list) => list.map((s) => s.name),
+      (error) => {
+        console.error(error);
+        return [];
+      },
+    ),
+  ]);
   const term = q.trim().toLowerCase();
   const shown = (accounts ?? []).filter(
     (a) => filter.match(a) && (!term || [a.name, a.email].some((v) => v?.toLowerCase().includes(term))),
@@ -184,7 +194,7 @@ async function AccountsContent({ searchParams }: { searchParams: PageProps<"/adm
                       {a.id === me ? (
                         <span className="text-sm text-baan-muted">This is you</span>
                       ) : (
-                        <AccountActions account={a} />
+                        <AccountActions account={a} services={serviceNames} />
                       )}
                     </td>
                   </tr>

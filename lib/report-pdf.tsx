@@ -48,8 +48,18 @@ function Bars({ items, total, color, capitalize }: { items: [string, number][]; 
   );
 }
 
-function ReportDocument({ filters, rows, generatedAt }: { filters: ReportFilters; rows: ReportRow[]; generatedAt: string }) {
-  const report = summarize(rows, filters);
+function ReportDocument({
+  filters,
+  rows,
+  serviceNames,
+  generatedAt,
+}: {
+  filters: ReportFilters;
+  rows: ReportRow[];
+  serviceNames: string[];
+  generatedAt: string;
+}) {
+  const report = summarize(rows, filters, serviceNames);
   const groupLabel = groupings.find((g) => g.id === filters.group)!.label;
   const max = Math.max(1, ...report.series.map((p) => p.count));
   const every = Math.ceil(report.series.length / 12);
@@ -141,6 +151,8 @@ function ReportDocument({ filters, rows, generatedAt }: { filters: ReportFilters
   );
 }
 
-export function renderReportPdf(filters: ReportFilters, rows: ReportRow[]) {
-  return renderToBuffer(<ReportDocument filters={filters} rows={rows} generatedAt={formatTimestamp(new Date().toISOString())} />);
+export function renderReportPdf(filters: ReportFilters, rows: ReportRow[], serviceNames: string[]) {
+  return renderToBuffer(
+    <ReportDocument filters={filters} rows={rows} serviceNames={serviceNames} generatedAt={formatTimestamp(new Date().toISOString())} />,
+  );
 }
