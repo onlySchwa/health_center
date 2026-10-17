@@ -5,7 +5,7 @@ import logo from "@/public/logo.jpg";
 
 export function SiteFooter() {
   return (
-    <footer className="relative overflow-hidden text-white">
+    <footer className="relative overflow-hidden text-white print:hidden">
       <Image
         src="/end-page-background.jpg"
         alt=""
