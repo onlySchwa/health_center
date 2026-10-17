@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { ActivityAction, roleStyle, show } from "@/components/activity-action";
 import { MinDelay } from "@/components/min-delay";
 import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
-import { formatTimestamp, getActivityLog, isAdmin, type ActivityEntry } from "@/lib/admin";
+import { formatTimestamp, getActivityLog, isAccountAction, isAdmin, type ActivityEntry } from "@/lib/admin";
 import AdminLoading from "../loading";
 
 export const metadata: Metadata = {
@@ -45,7 +45,7 @@ async function AuditContent({ searchParams }: { searchParams: PageProps<"/admin/
     <div className="mx-auto flex max-w-310 flex-col gap-7 px-6 py-12">
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-[34px] font-extrabold text-baan-navy">Audit log</h1>
-        <p className="text-[15px] text-baan-muted">Who changed which appointment, and when.</p>
+        <p className="text-[15px] text-baan-muted">Who changed which appointment or account, and when.</p>
       </div>
 
       <section aria-label="Activity" className={`${panel} flex flex-col gap-5 p-7`}>
@@ -83,7 +83,7 @@ function ActivityTable({ log }: { log: ActivityEntry[] }) {
               <th scope="col" className={th}>When</th>
               <th scope="col" className={th}>Who</th>
               <th scope="col" className={th}>Action</th>
-              <th scope="col" className={th}>Appointment</th>
+              <th scope="col" className={th}>Record</th>
             </tr>
           </thead>
           <tbody>
@@ -100,8 +100,10 @@ function ActivityTable({ log }: { log: ActivityEntry[] }) {
                   <ActivityAction e={e} />
                 </td>
                 <td className={td}>
-                  <div className="font-semibold text-baan-muted">{e.appointment_ref}</div>
-                  {e.appointment ? (
+                  <div className="font-semibold text-baan-muted">{e.appointment_ref ?? "Account"}</div>
+                  {isAccountAction(e.action) ? (
+                    <div>{e.target_name}</div>
+                  ) : e.appointment ? (
                     <div>
                       {e.appointment.resident_name} · {e.appointment.service}
                     </div>

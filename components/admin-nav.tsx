@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, ChartColumn, FileText, House, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChartColumn, FileText, House, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,6 +9,7 @@ const adminLinks: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin", label: "Overview", icon: House },
   { href: "/admin/appointments", label: "Appointments", icon: CalendarDays },
   { href: "/admin/residents", label: "Residents", icon: Users },
+  { href: "/admin/accounts", label: "Staff & accounts", icon: ShieldCheck },
   { href: "/admin/reports", label: "Reports", icon: ChartColumn },
   { href: "/admin/audit", label: "Audit log", icon: FileText },
 ];

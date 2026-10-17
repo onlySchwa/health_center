@@ -1,9 +1,9 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { refresh } from "next/cache";
 import { after } from "next/server";
-import { isAdmin } from "@/lib/admin";
+import { isAdmin, type AccountRole } from "@/lib/admin";
 import { sendAppointmentEmail } from "@/lib/appointment-email";
 import { services, statusStyle, timeSlots } from "@/lib/appointment-options";
 import { getStaffAccess, manilaToday } from "@/lib/appointments";
@@ -244,4 +244,74 @@ export async function deleteAppointment(id: number): Promise<ActionResult> {
   }
   refresh();
   return { ok: true };
+}
+
+// Account changes are made in Clerk (where roles live), then recorded through an admin-only
+// database function (see 0010_account_audit.sql). Admins can't change their own account,
+// so there's always at least one admin left.
+async function checkAccountChange(userId: unknown) {
+  const { userId: me } = await auth();
+  if (!(await isAdmin()) || typeof userId !== "string" || !userId) return "Not allowed.";
+  if (userId === me) return "You can't change your own account.";
+  return null;
+}
+
+async function logAccountChange(userId: string, action: "role_changed" | "deactivated" | "reactivated", details?: object) {
+  const { error } = await createSupabase().rpc("admin_log_account_change", {
+    p_target_user_id: userId,
+    p_action: action,
+    p_details: details ?? null,
+  });
+  if (error) console.error(`Couldn't record ${action} for ${userId}:`, error.message);
+  return !error;
+}
+
+const roles: AccountRole[] = ["resident", "staff", "admin"];
+
+export async function setAccountRole(userId: string, role: unknown, staffServices: unknown): Promise<ActionResult> {
+  const denied = await checkAccountChange(userId);
+  if (denied) return { ok: false, error: denied };
+  if (!roles.includes(role as AccountRole)) return { ok: false, error: "Please choose a role." };
+  const picked = Array.isArray(staffServices) ? services.filter((s) => staffServices.includes(s)) : [];
+  if (role === "staff" && picked.length === 0) return { ok: false, error: "Choose at least one service for this staff member." };
+
+  const client = await clerkClient();
+  let before;
+  try {
+    const user = await client.users.getUser(userId);
+    const meta = user.publicMetadata as { role?: unknown; services?: unknown };
+    before = { role: typeof meta.role === "string" ? meta.role : "resident", services: Array.isArray(meta.services) ? meta.services : [] };
+    // Clerk merges metadata; null removes a key, so residents end up with neither.
+    await client.users.updateUserMetadata(userId, {
+      publicMetadata: { role: role === "resident" ? null : role, services: role === "staff" ? picked : null },
+    });
+  } catch (error) {
+    console.error("setAccountRole failed:", error);
+    return { ok: false, error: "This account couldn't be updated." };
+  }
+
+  const logged = await logAccountChange(userId, "role_changed", { from: before, to: { role, services: role === "staff" ? picked : [] } });
+  refresh();
+  return logged ? { ok: true } : { ok: false, error: "The role was changed, but it couldn't be recorded in the audit log." };
+}
+
+// Deactivating bans the account in Clerk: it's signed out everywhere and can't sign in until reactivated.
+export async function setAccountActive(userId: string, active: boolean): Promise<ActionResult> {
+  const denied = await checkAccountChange(userId);
+  if (denied) return { ok: false, error: denied };
+  if (typeof active !== "boolean") return { ok: false, error: "Not allowed." };
+
+  try {
+    const client = await clerkClient();
+    await (active ? client.users.unbanUser(userId) : client.users.banUser(userId));
+  } catch (error) {
+    console.error("setAccountActive failed:", error);
+    return { ok: false, error: "This account couldn't be updated." };
+  }
+
+  const logged = await logAccountChange(userId, active ? "reactivated" : "deactivated");
+  refresh();
+  return logged
+    ? { ok: true }
+    : { ok: false, error: `The account was ${active ? "reactivated" : "deactivated"}, but it couldn't be recorded in the audit log.` };
 }

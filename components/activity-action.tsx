@@ -17,10 +17,16 @@ const fieldLabels: Record<string, string> = {
 
 export const show = (value: unknown) => (value === null || value === "" ? "(empty)" : String(value));
 
+// "role_changed" details: { from: { role, services }, to: { role, services } }.
+const describeRole = (side: unknown) => {
+  const { role, services } = (side ?? {}) as { role?: unknown; services?: unknown };
+  const list = Array.isArray(services) && services.length ? ` (${services.join(", ")})` : "";
+  return `${typeof role === "string" ? role : "resident"}${list}`;
+};
+
 export function ActivityAction({ e }: { e: ActivityEntry }) {
-  const badge = (status: ActivityEntry["new_status"]) => (
-    <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ${statusStyle[status]}`}>{status}</span>
-  );
+  const badge = (status: ActivityEntry["new_status"]) =>
+    status && <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ${statusStyle[status]}`}>{status}</span>;
   switch (e.action) {
     case "created":
       return <span className="font-semibold">Booked appointment</span>;
@@ -51,6 +57,19 @@ export function ActivityAction({ e }: { e: ActivityEntry }) {
       return <span className="font-semibold">Restored from archive</span>;
     case "deleted":
       return <span className="font-semibold text-[#9B2C2C]">Permanently deleted</span>;
+    case "role_changed":
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="font-semibold">Changed role</span>
+          <span className="text-sm text-baan-muted capitalize">
+            {describeRole(e.details?.from)} → <span className="text-baan-ink">{describeRole(e.details?.to)}</span>
+          </span>
+        </div>
+      );
+    case "deactivated":
+      return <span className="font-semibold text-[#9B2C2C]">Deactivated account</span>;
+    case "reactivated":
+      return <span className="font-semibold">Reactivated account</span>;
   }
 }
 
