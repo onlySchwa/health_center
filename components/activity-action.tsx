@@ -126,6 +126,25 @@ export function ActivityAction({ e }: { e: ActivityEntry }) {
           <ChangeList changes={e.details?.changes} labels={serviceFieldLabels} />
         </div>
       );
+    case "email_retried": {
+      const result = e.details?.result;
+      const outcome =
+        result === "sent"
+          ? { text: "sent", tone: "text-[#145C5A]" }
+          : result === "failed"
+            ? { text: "failed again", tone: "text-[#9B2C2C]" }
+            : result === "no_email"
+              ? { text: "no email address on file", tone: "text-[#9B2C2C]" }
+              : { text: "not needed (already sent or visit date passed)", tone: "text-baan-muted" };
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="font-semibold">
+            Retried {typeof e.details?.email_for === "string" ? `${e.details.email_for} ` : ""}email
+          </span>
+          <span className={`text-sm font-semibold ${outcome.tone}`}>Result: {outcome.text}</span>
+        </div>
+      );
+    }
     case "settings_updated":
       return (
         <div className="flex flex-col gap-1">
