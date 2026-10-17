@@ -17,13 +17,19 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { addDays, format, isWeekend, parseISO } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requestAppointment } from "@/lib/actions";
-import { services, timeSlots } from "@/lib/appointment-options";
+import { timeSlots } from "@/lib/appointment-options";
+import type { Service } from "@/lib/services";
+import type { BookingRules } from "@/lib/settings";
+
+export type BookingService = Pick<Service, "name" | "requirements" | "days" | "timeSlots">;
+
+const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // Holds what a signed-out visitor typed while they sign in. sessionStorage is
 // per-tab and cleared when the tab closes; we also delete it as soon as it's restored.
@@ -82,12 +88,16 @@ function SectionHeading({ step, title }: { step: number; title: string }) {
 }
 
 type BookingFormProps = {
+  // Active services only; each one's days (1 = Monday) and time slots limit what can be picked.
+  services: BookingService[];
+  // Same-day booking, how far ahead and closed dates (Admin → Settings). Full slots are checked on submit.
+  rules: BookingRules;
   defaults?: { firstName?: string; lastName?: string; email?: string; phone?: string };
 };
 
 // Signed-in residents' requests are saved; signed-out visitors are sent to sign in
 // first, then brought back with their draft.
-export function BookingForm({ defaults }: BookingFormProps) {
+export function BookingForm({ services, rules, defaults }: BookingFormProps) {
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -100,10 +110,29 @@ export function BookingForm({ defaults }: BookingFormProps) {
   const today = todayIso ? parseISO(todayIso) : null;
   const [date, setDate] = useState<Date>();
   const [month, setMonth] = useState<Date>();
+  const [serviceName, setServiceName] = useState(services[0]?.name ?? "");
+  const [slot, setSlot] = useState("");
+  const service = services.find((s) => s.name === serviceName) ?? services[0];
+  // The chosen slot if this service offers it, else its first slot.
+  const timeSlot = service?.timeSlots.includes(slot) ? slot : (service?.timeSlots[0] ?? "");
+  const firstDay = today && (rules.allowSameDay ? today : addDays(today, 1));
+  const lastDay = today && rules.maxDaysAhead !== null ? addDays(today, rules.maxDaysAhead) : null;
+  const offeredOn = (day: Date) =>
+    Boolean(service?.days.includes(day.getDay())) &&
+    !rules.closedDates.includes(format(day, "yyyy-MM-dd")) &&
+    (!firstDay || day >= firstDay) &&
+    (!lastDay || day <= lastDay);
 
   function pickDate(day: Date) {
     setDate(day);
     setMonth(day);
+  }
+
+  function pickService(name: string) {
+    setServiceName(name);
+    const next = services.find((s) => s.name === name);
+    // Clear a date the newly chosen service isn't offered on.
+    if (date && next && !next.days.includes(date.getDay())) setDate(undefined);
   }
 
   useEffect(() => {
@@ -115,14 +144,17 @@ export function BookingForm({ defaults }: BookingFormProps) {
       sessionStorage.removeItem(DRAFT_KEY);
       const draft: Record<string, string> = JSON.parse(saved);
       for (const field of draftFields) {
-        // Radio groups come back as a RadioNodeList, whose value setter checks the matching option.
+        if (field === "service" || field === "time" || field === "date") continue;
         const el = form.elements.namedItem(field);
         if (draft[field] && el && "value" in el) el.value = draft[field];
       }
-      // The date lives in state (the hidden input just mirrors it), so restore it there.
-      // sessionStorage only exists in the browser, so this can't move into useState's initializer.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // Service, time and date live in state, so restore them there. sessionStorage only
+      // exists in the browser, so this can't move into useState's initializer.
+      /* eslint-disable react-hooks/set-state-in-effect */
+      if (draft.service) setServiceName(draft.service);
+      if (draft.time) setSlot(draft.time);
       if (draft.date) pickDate(parseISO(draft.date));
+      /* eslint-enable react-hooks/set-state-in-effect */
     } catch {
       // Storage blocked or draft unreadable: start with an empty form.
     }
@@ -190,6 +222,17 @@ export function BookingForm({ defaults }: BookingFormProps) {
     );
   }
 
+  if (services.length === 0) {
+    return (
+      <div role="status" className={`${card} flex flex-col items-center gap-3 p-10 text-center`}>
+        <h3 className="font-display text-[26px] font-bold text-baan-navy">Online booking is paused</h3>
+        <p className="max-w-sm text-lg leading-relaxed text-baan-muted">
+          No services are open for booking right now. Please call or visit the health center.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form ref={formRef} aria-labelledby="form-h" onSubmit={handleSubmit} className={`${card} overflow-hidden`}>
       <div className="border-b border-baan-line bg-linear-to-br from-baan-mist to-white px-7 py-6 sm:px-9">
@@ -220,25 +263,38 @@ export function BookingForm({ defaults }: BookingFormProps) {
 
         <SectionHeading step={2} title="Appointment" />
         <Field id="f-svc" label="Service to appoint" icon={Stethoscope} wide>
-          <select id="f-svc" name="service" className={`${fieldClass} ${withIcon} appearance-none pr-10`}>
+          <select
+            id="f-svc"
+            name="service"
+            value={service?.name ?? ""}
+            onChange={(e) => pickService(e.target.value)}
+            aria-describedby={service?.requirements ? "f-svc-req" : undefined}
+            className={`${fieldClass} ${withIcon} appearance-none pr-10`}
+          >
             {services.map((s) => (
-              <option key={s}>{s}</option>
+              <option key={s.name}>{s.name}</option>
             ))}
           </select>
           <ChevronDown aria-hidden className="pointer-events-none absolute top-3.5 right-3.5 size-5 text-[#7A9095]" />
         </Field>
+        {service?.requirements && (
+          <p id="f-svc-req" className="col-span-full -mt-2 rounded-xl bg-baan-teal/5 px-4 py-3 text-sm text-baan-ink">
+            <span className="font-semibold text-baan-teal">What to bring: </span>
+            {service.requirements}
+          </p>
+        )}
         <fieldset className="col-span-full flex flex-col gap-1.5">
           <legend className={`${labelClass} mb-1.5`}>Preferred time</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {timeSlots.map((t, i) => {
-              const Icon = slotIcons[i] ?? Sun;
+            {timeSlots.filter((t) => service?.timeSlots.includes(t)).map((t) => {
+              const Icon = slotIcons[timeSlots.indexOf(t)] ?? Sun;
               const [label, hours] = t.split(" (");
               return (
                 <label
                   key={t}
                   className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-baan-line bg-baan-mist/60 px-4 py-3 transition-colors hover:border-[#B9C9CC] has-checked:border-baan-teal has-checked:bg-baan-teal/5 has-checked:ring-4 has-checked:ring-baan-teal/15 has-focus-visible:ring-4 has-focus-visible:ring-baan-teal/25"
                 >
-                  <input type="radio" name="time" value={t} defaultChecked={i === 0} className="sr-only" />
+                  <input type="radio" name="time" value={t} checked={timeSlot === t} onChange={() => setSlot(t)} className="sr-only" />
                   <Icon aria-hidden className="size-5 flex-none text-baan-teal" />
                   <span className="flex flex-col leading-tight">
                     <span className="font-semibold text-baan-navy">{label}</span>
@@ -251,7 +307,10 @@ export function BookingForm({ defaults }: BookingFormProps) {
         </fieldset>
         <fieldset className="col-span-full flex flex-col gap-1.5">
           <legend className={`${labelClass} mb-1.5`}>
-            Preferred date<span className="ml-1 text-[13px] font-normal text-baan-muted">(Monday to Friday)</span>
+            Preferred date
+            <span className="ml-1 text-[13px] font-normal text-baan-muted">
+              ({service?.days.length === 5 ? "Monday to Friday" : service?.days.map((d) => dayNames[d]).join(", ")})
+            </span>
           </legend>
           <input type="hidden" name="date" value={date ? format(date, "yyyy-MM-dd") : ""} />
           {today ? (
@@ -263,7 +322,8 @@ export function BookingForm({ defaults }: BookingFormProps) {
                 month={month ?? today}
                 onMonthChange={setMonth}
                 startMonth={today}
-                disabled={[{ before: today }, { dayOfWeek: [0, 6] }]}
+                endMonth={lastDay ?? undefined}
+                disabled={[{ before: today }, (day) => !offeredOn(day)]}
                 fixedWeeks
                 className="p-3 [--cell-size:--spacing(9.5)]"
               />
@@ -277,7 +337,7 @@ export function BookingForm({ defaults }: BookingFormProps) {
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      disabled={isWeekend(day)}
+                      disabled={!offeredOn(day)}
                       onClick={() => pickDate(day)}
                     >
                       {preset.label}

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { activeServices, getServices } from "@/lib/services";
 import childImmunization from "@/public/Child Immunization.jpg";
 
 const featuredServices = [
@@ -30,14 +31,12 @@ const featuredServices = [
   },
 ];
 
-const services = [
-  { title: "General consultation", desc: "Fever, cough, body pain or a check-up you've been putting off." },
-  { title: "Child immunization", desc: "Routine vaccines for infants and children, on schedule." },
-  { title: "Prenatal & maternal care", desc: "Regular check-ups for a safe pregnancy and healthy delivery." },
-  { title: "Family planning", desc: "Private counseling and methods that fit your family." },
-];
-
-export function ServicesSection() {
+export async function ServicesSection() {
+  // Active services as admins describe them (Admin → Health services).
+  const services = await getServices().then(activeServices, (error) => {
+    console.error(error);
+    return [];
+  });
   return (
     <section id="services" aria-labelledby="svc-h" className="bg-baan-mist">
       <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
@@ -83,9 +82,9 @@ export function ServicesSection() {
 
           <div className="grid min-w-0 flex-[999_1_520px] grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
             {services.map((s) => (
-              <article key={s.title} className="flex flex-col gap-2 rounded-2xl border border-baan-line bg-white p-6">
-                <h3 className="font-display text-xl font-semibold text-baan-navy">{s.title}</h3>
-                <p className="leading-normal text-baan-muted">{s.desc}</p>
+              <article key={s.name} className="flex flex-col gap-2 rounded-2xl border border-baan-line bg-white p-6">
+                <h3 className="font-display text-xl font-semibold text-baan-navy">{s.name}</h3>
+                <p className="leading-normal text-baan-muted">{s.description}</p>
                 <Link href="/appointments" className="mt-auto inline-flex min-h-11 items-center font-bold text-baan-orange hover:text-[#9E3E14]">
                   Book this →
                 </Link>

@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { isAdmin } from "@/lib/admin";
 import { manilaToday } from "@/lib/appointments";
 import { getReportRows, longDate, parseReportFilters } from "@/lib/reports";
+import { getServices } from "@/lib/services";
 
 // Quotes a CSV cell, and stops spreadsheet apps from running it as a formula.
 const cell = (value: string) => {
@@ -15,9 +16,10 @@ export async function GET(request: Request) {
   if (!(await isAdmin())) return new Response("Not allowed.", { status: 403 });
   await connection();
 
-  const filters = parseReportFilters(Object.fromEntries(new URL(request.url).searchParams), manilaToday());
-  let rows;
+  let rows, filters;
   try {
+    const serviceNames = (await getServices()).map((s) => s.name);
+    filters = parseReportFilters(Object.fromEntries(new URL(request.url).searchParams), manilaToday(), serviceNames);
     rows = await getReportRows(filters);
   } catch (error) {
     console.error(error);

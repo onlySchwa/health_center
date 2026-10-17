@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { BookingForm } from "@/components/booking-form";
+import { activeServices, getServices } from "@/lib/services";
+import { getBookingRules } from "@/lib/settings";
 import { eyebrow } from "@/lib/styles";
 
 const steps = [
@@ -8,7 +10,14 @@ const steps = [
   { title: "Get a confirmation email", desc: "Show it at the front desk when you arrive." },
 ];
 
-export function BookingSection() {
+export async function BookingSection() {
+  const [services, rules] = await Promise.all([
+    getServices().then(activeServices, (error) => {
+      console.error(error);
+      return [];
+    }),
+    getBookingRules(),
+  ]);
   return (
     <section id="book" aria-labelledby="book-h" className="scroll-mt-4 bg-baan-navy text-white">
       <div className="mx-auto flex max-w-310 flex-wrap items-start gap-12 px-6 py-24">
@@ -37,7 +46,10 @@ export function BookingSection() {
             </Link>
           </p>
         </div>
-        <BookingForm />
+        <BookingForm
+          services={services.map(({ name, requirements, days, timeSlots }) => ({ name, requirements, days, timeSlots }))}
+          rules={rules}
+        />
       </div>
     </section>
   );

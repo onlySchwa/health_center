@@ -22,6 +22,7 @@ import {
 } from "@/lib/admin";
 import { statusStyle } from "@/lib/appointment-options";
 import { formatApptDate, manilaToday } from "@/lib/appointments";
+import { getServices } from "@/lib/services";
 import AdminLoading from "../loading";
 
 export const metadata: Metadata = {
@@ -92,11 +93,12 @@ async function AdminContent({ searchParams }: { searchParams: PageProps<"/admin/
     errors.push(error);
     return null;
   };
-  const [unsentEmails, rows, detail, history] = await Promise.all([
+  const [unsentEmails, rows, detail, history, services] = await Promise.all([
     getUnsentEmailCount().catch(fail),
     getAdminAppointments(tab, q, email).catch(fail),
     hasDetail ? getAdminAppointment(detailId).catch(fail) : null,
     hasDetail ? getActivityLog({ appointmentId: detailId }).catch(fail) : null,
+    getServices().catch(fail),
   ]);
 
   return (
@@ -199,7 +201,15 @@ async function AdminContent({ searchParams }: { searchParams: PageProps<"/admin/
             )
           ))}
 
-        {rows && <AppointmentTable rows={rows} list={list} selectedId={detail?.id} today={today} />}
+        {rows && (
+          <AppointmentTable
+            rows={rows}
+            list={list}
+            selectedId={detail?.id}
+            today={today}
+            services={(services ?? []).map((s) => s.name)}
+          />
+        )}
       </section>
     </div>
   );
@@ -210,11 +220,13 @@ function AppointmentTable({
   list,
   selectedId,
   today,
+  services,
 }: {
   rows: AdminAppointment[];
   list: ListState;
   selectedId?: number;
   today: string;
+  services: string[];
 }) {
   const { tab, q, email } = list;
   if (rows.length === 0) {
@@ -313,7 +325,7 @@ function AppointmentTable({
                   </td>
                   {tab !== "pending" && (
                     <td className={td}>
-                      <AdminRowActions appointment={a} />
+                      <AdminRowActions appointment={a} services={services} />
                     </td>
                   )}
                 </tr>

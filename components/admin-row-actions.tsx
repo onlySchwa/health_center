@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { adminUpdateAppointment, deleteAppointment, setAppointmentArchived, type ActionResult } from "@/lib/actions";
-import { services, statusStyle, timeSlots, type Status } from "@/lib/appointment-options";
+import { statusStyle, timeSlots, type Status } from "@/lib/appointment-options";
 
 type Appointment = {
   id: number;
@@ -25,7 +25,8 @@ const field =
 const small = "min-h-10 rounded-full px-4 text-sm font-bold";
 
 // Edit / Archive (or Restore) / Delete for one appointment. Archive and delete ask first.
-export function AdminRowActions({ appointment: a }: { appointment: Appointment }) {
+// services: every service name on record, disabled ones included, so old appointments stay editable.
+export function AdminRowActions({ appointment: a, services }: { appointment: Appointment; services: string[] }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   // Bumped on every open so the form starts from the latest saved values.

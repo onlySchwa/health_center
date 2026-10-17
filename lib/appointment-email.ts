@@ -3,7 +3,8 @@ import nodemailer, { type Transporter } from "nodemailer";
 
 // Sent through a Gmail account with an app password (GMAIL_USER, GMAIL_APP_PASSWORD in .env.local).
 // Gmail allows about 500 recipients a day.
-export type EmailKind = "received" | "confirmed" | "rejected";
+// "alert" goes to admins when a resident books (Admin → Settings → New request alert).
+export type EmailKind = "received" | "confirmed" | "rejected" | "alert";
 
 export type EmailDetails = {
   to: string;
@@ -12,7 +13,9 @@ export type EmailDetails = {
   service: string;
   apptDate: string;
   timeSlot: string;
-  // Only shown in the "received" email, as a copy of what the resident filled in.
+  // Only shown in the "received" and "alert" emails, as a copy of what the resident filled in.
+  // residentEmail: the resident's address when the email goes to someone else (an admin alert).
+  residentEmail?: string;
   fullName?: string;
   phone?: string | null;
   address?: string | null;
@@ -37,9 +40,39 @@ const copy: Record<EmailKind, { subject: string; heading: string; message: strin
     heading: "Request not approved",
     message: "We're sorry, we couldn't accept this request. Please book another date or contact the health center.",
   },
+  alert: {
+    subject: "New appointment request",
+    heading: "New appointment request",
+    message: "A resident just requested an appointment. Confirm or reject it in the admin dashboard under Appointments.",
+  },
 };
 
 let transport: Transporter | undefined;
+
+function getTransport() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return null;
+  transport ??= nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
+  return { transport, from: `Baan Health Care <${user}>` };
+}
+
+// A short email to check that Gmail sending works (Admin → Settings → Send test email).
+export async function sendTestEmail(to: string): Promise<EmailResult> {
+  const mail = getTransport();
+  if (!mail) return { ok: false, error: "GMAIL_USER or GMAIL_APP_PASSWORD is not set." };
+  try {
+    await mail.transport.sendMail({
+      from: mail.from,
+      to,
+      subject: "Test email from Baan Health Care",
+      text: "This is a test email from the Baan Health Care admin dashboard. If you can read this, emails to residents are working.",
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Unknown email error." };
+  }
+}
 
 // Residents' input goes into the HTML, so it must be escaped.
 const esc = (s: string) =>
@@ -49,10 +82,8 @@ const longDate = (iso: string) =>
   new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "full" }).format(new Date(`${iso}T00:00:00+08:00`));
 
 export async function sendAppointmentEmail(kind: EmailKind, d: EmailDetails): Promise<EmailResult> {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) return { ok: false, error: "GMAIL_USER or GMAIL_APP_PASSWORD is not set." };
-  transport ??= nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
+  const mail = getTransport();
+  if (!mail) return { ok: false, error: "GMAIL_USER or GMAIL_APP_PASSWORD is not set." };
 
   const { subject, heading, message } = copy[kind];
   const rows: [string, string | null | undefined][] = [
@@ -61,9 +92,9 @@ export async function sendAppointmentEmail(kind: EmailKind, d: EmailDetails): Pr
     ["Service", d.service],
     ["Date", longDate(d.apptDate)],
     ["Time", d.timeSlot],
-    ...(kind === "received"
+    ...(kind === "received" || kind === "alert"
       ? ([
-          ["Email", d.to],
+          ["Email", d.residentEmail ?? d.to],
           ["Mobile number", d.phone],
           ["Address", d.address],
           ["Notes", d.note],
@@ -94,7 +125,7 @@ export async function sendAppointmentEmail(kind: EmailKind, d: EmailDetails): Pr
   const text = `Hi ${d.firstName},\n\n${message}\n\n${filled.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\nBaan KM 3 Barangay Health Center`;
 
   try {
-    await transport.sendMail({ from: `Baan Health Care <${user}>`, to: d.to, subject: `${subject} (${d.ref})`, html, text });
+    await mail.transport.sendMail({ from: mail.from, to: d.to, subject: `${subject} (${d.ref})`, html, text });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Unknown email error." };
