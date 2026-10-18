@@ -15,7 +15,7 @@ import {
   type ResidentAppointmentRow,
 } from "@/lib/admin";
 import { statusStyle } from "@/lib/appointment-options";
-import { formatApptDate } from "@/lib/appointments";
+import { formatApptDate, manilaToday, refOf } from "@/lib/appointments";
 import AdminLoading from "../loading";
 
 export const metadata: Metadata = {
@@ -188,14 +188,31 @@ function ResidentProfile({
   history: ResidentAppointmentRow[] | null;
   closeHref: string;
 }) {
-  // Clerk rarely has a phone; the latest booking's phone and address are the best contact on file.
-  const latest = history?.find((a) => a.phone || a.address);
+  // Clerk rarely has a phone; the latest booking that included each detail is the best contact on file.
+  const phone = history?.find((a) => a.phone)?.phone;
+  const address = history?.find((a) => a.address)?.address;
   const fields: [string, string][] = [
     ["Email", r.email ?? "—"],
-    ["Mobile number", r.phone ?? (latest?.phone ? `${latest.phone} (from latest booking)` : "—")],
-    ["Address (latest booking)", latest?.address ?? "—"],
+    ["Mobile number", r.phone ?? (phone ? `${phone} (from latest booking)` : "—")],
+    ["Address (latest booking)", address ?? "—"],
     ["Joined", fromMs(r.joinedAt)],
     ["Last signed in", r.lastSignInAt ? fromMs(r.lastSignInAt) : "Never"],
+  ];
+
+  // Visit summary, same as the staff profile: archived records left out. History is newest first.
+  const today = manilaToday();
+  const visits = history?.filter((a) => !a.archived_at) ?? [];
+  const lastVisit = visits.find((a) => a.status === "completed")?.appt_date;
+  const nextVisit = visits.findLast((a) => (a.status === "pending" || a.status === "confirmed") && a.appt_date >= today)?.appt_date;
+  const shortDate = (iso: string) => {
+    const d = formatApptDate(iso);
+    return `${d.weekday.slice(0, 3)}, ${d.month} ${d.day}`;
+  };
+  const summary = [
+    { label: "Completed", value: String(visits.filter((a) => a.status === "completed").length), tone: "text-baan-teal" },
+    { label: "Missed", value: String(visits.filter((a) => a.status === "missed").length), tone: "text-[#9B2C2C]" },
+    { label: "Last visit", value: lastVisit ? shortDate(lastVisit) : "None yet", tone: "text-baan-navy" },
+    { label: "Next visit", value: nextVisit ? shortDate(nextVisit) : "None booked", tone: "text-baan-orange" },
   ];
 
   return (
@@ -225,6 +242,17 @@ function ResidentProfile({
           </p>
         )}
 
+        {history && (
+          <dl aria-label="Visit summary" className="grid grid-cols-2 gap-2.5">
+            {summary.map((s) => (
+              <div key={s.label} className="flex flex-col gap-0.5 rounded-xl bg-baan-mist px-3.5 py-2.5">
+                <dt className="text-xs font-semibold text-baan-muted">{s.label}</dt>
+                <dd className={`font-display text-lg font-extrabold ${s.tone}`}>{s.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
         <dl className="flex flex-col gap-3.5">
           {fields.map(([name, value]) => (
             <div key={name} className="flex flex-col gap-0.5">
@@ -235,7 +263,7 @@ function ResidentProfile({
         </dl>
 
         <div className="flex flex-col gap-3">
-          <h3 className={label}>Appointment history</h3>
+          <h3 className={label}>Visit history</h3>
           {!history ? (
             <p className="text-baan-muted">Appointments couldn&apos;t be loaded.</p>
           ) : history.length === 0 ? (
@@ -253,11 +281,15 @@ function ResidentProfile({
                       <span className="flex min-w-0 flex-[1_1_160px] flex-col">
                         <span className="font-semibold text-baan-navy">{a.service}</span>
                         <span className="text-sm text-baan-muted">
-                          {a.ref} · {d.weekday.slice(0, 3)}, {d.month} {d.day}
+                          {a.ref} · {d.weekday.slice(0, 3)}, {d.month} {d.day} · {a.time_slot.split(" (")[0]}
                           {a.archived_at ? " · Archived" : ""}
                         </span>
+                        {a.follow_up_of && (
+                          <span className="text-xs font-semibold text-baan-teal">Follow-up of {refOf(a.follow_up_of)}</span>
+                        )}
                       </span>
                       <span className={`rounded-full px-3 py-1 text-sm font-bold capitalize ${statusStyle[a.status]}`}>{a.status}</span>
+                      {a.note && <span className="basis-full text-sm text-baan-muted">Note: {a.note}</span>}
                     </Link>
                   </li>
                 );

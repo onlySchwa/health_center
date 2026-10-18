@@ -139,7 +139,8 @@ export async function markAppointment(id: number, status: "completed" | "missed"
     return { ok: false, error: "Not allowed." };
   }
 
-  // Row-level security limits this to the staff member's services and to due, open appointments.
+  // Row-level security limits this to the staff member's services, and the status trigger to due,
+  // open appointments (0014_staff_review.sql).
   const { data, error } = await createSupabase()
     .from("appointments")
     .update({ status })
@@ -150,12 +151,55 @@ export async function markAppointment(id: number, status: "completed" | "missed"
   return { ok: true };
 }
 
+// Messages the staff functions raise for the user (errcode P0001); anything else stays generic.
+const staffError = (error: { code?: string; message: string }, fallback: string) =>
+  error.code === "P0001" ? error.message : fallback;
+
+// Staff book the resident's next visit from a completed one, saved as confirmed
+// (see staff_book_follow_up in 0015_follow_up_and_undo.sql), and the resident is emailed.
+export async function bookFollowUp(fromId: number, input: Record<string, unknown>): Promise<ActionResult> {
+  if (!(await getStaffAccess()) || !Number.isInteger(fromId)) return { ok: false, error: "Not allowed." };
+  const date = text(input.date, 10);
+  const slot = text(input.time, 40);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Please choose a date." };
+  if (!timeSlots.includes(slot)) return { ok: false, error: "Please choose a time." };
+
+  const { data: newId, error } = await createSupabase().rpc("staff_book_follow_up", {
+    p_from: fromId,
+    p_date: date,
+    p_slot: slot,
+  });
+  if (error) {
+    if (error.code !== "P0001") console.error("bookFollowUp failed:", error.message);
+    return { ok: false, error: staffError(error, "The follow-up couldn't be booked. Please try again.") };
+  }
+  // The booking stands even if the email fails; the result is recorded and shown to admins.
+  await emailStatusChange(newId as number);
+  refresh();
+  return { ok: true };
+}
+
+// Staff undo their own completed/missed mark within 10 minutes (see staff_undo_mark in 0015).
+export async function undoMark(id: number): Promise<ActionResult> {
+  if (!(await getStaffAccess()) || !Number.isInteger(id)) return { ok: false, error: "Not allowed." };
+  const { error } = await createSupabase().rpc("staff_undo_mark", { p_id: id });
+  if (error) {
+    if (error.code !== "P0001") console.error("undoMark failed:", error.message);
+    return { ok: false, error: staffError(error, "This mark couldn't be undone. Please try again.") };
+  }
+  refresh();
+  return { ok: true };
+}
+
+// Admins decide any request; staff only those for their own services.
 export async function reviewAppointment(id: number, status: "confirmed" | "rejected"): Promise<ActionResult> {
-  if (!(await isAdmin()) || !Number.isInteger(id) || (status !== "confirmed" && status !== "rejected")) {
+  const allowed = (await isAdmin()) || (await getStaffAccess()) !== null;
+  if (!allowed || !Number.isInteger(id) || (status !== "confirmed" && status !== "rejected")) {
     return { ok: false, error: "Not allowed." };
   }
 
-  // Row-level security limits this to pending requests, and confirming to today or later.
+  // Row-level security limits this to pending requests (and staff to their services), and
+  // confirming to today or later (see 0004_rejected_status.sql and 0014_staff_review.sql).
   const { data, error } = await createSupabase()
     .from("appointments")
     .update({ status })

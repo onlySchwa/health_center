@@ -21,7 +21,7 @@ import {
   type EmailFilter,
 } from "@/lib/admin";
 import { statusStyle } from "@/lib/appointment-options";
-import { formatApptDate, manilaToday } from "@/lib/appointments";
+import { formatApptDate, manilaToday, refOf } from "@/lib/appointments";
 import { getServices } from "@/lib/services";
 import AdminLoading from "../loading";
 
@@ -286,7 +286,17 @@ function AppointmentTable({
                     )}
                     {a.address && <div className="max-w-60 text-sm break-words text-baan-muted">{a.address}</div>}
                   </td>
-                  <td className={td}>{a.service}</td>
+                  <td className={td}>
+                    {a.service}
+                    {a.follow_up_of && (
+                      <Link
+                        href={`/admin/appointments?tab=history&id=${a.follow_up_of}`}
+                        className="mt-1 block text-xs font-semibold text-baan-teal hover:underline"
+                      >
+                        Follow-up of {refOf(a.follow_up_of)}
+                      </Link>
+                    )}
+                  </td>
                   <td className={td}>
                     <div className="font-semibold whitespace-nowrap">
                       {a.appt_date === today ? "Today" : `${d.weekday.slice(0, 3)}, ${d.month} ${d.day}`}
@@ -362,7 +372,7 @@ function AppointmentDetails({
 }) {
   const d = formatApptDate(a.appt_date);
   const fields: [string, string][] = [
-    ["Service", a.service],
+    ["Service", a.follow_up_of ? `${a.service} · follow-up of ${refOf(a.follow_up_of)}` : a.service],
     ["Date & time", `${d.weekday}, ${d.month} ${d.day} · ${a.time_slot}`],
     ["Email", a.email ?? "—"],
     ["Mobile number", a.phone ?? "—"],

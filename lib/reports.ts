@@ -44,7 +44,8 @@ export const filtersQuery = (f: ReportFilters) => {
 export type ReportRow = { ref: string; appt_date: string; time_slot: string; service: string; status: Status };
 
 // Non-archived appointments whose visit date falls in the range.
-export async function getReportRows({ from, to, service }: ReportFilters) {
+// allowed: limit to these services (a staff member's own); row-level security enforces the same.
+export async function getReportRows({ from, to, service }: ReportFilters, allowed?: string[]) {
   let query = createSupabase()
     .from("appointments")
     .select("ref, appt_date, time_slot, service, status")
@@ -52,6 +53,7 @@ export async function getReportRows({ from, to, service }: ReportFilters) {
     .gte("appt_date", from)
     .lte("appt_date", to);
   if (service) query = query.eq("service", service);
+  if (allowed) query = query.in("service", allowed);
   const { data, error } = await query.order("appt_date").order("time_slot").limit(10000);
   if (error) throw new Error(`Could not load report: ${error.message}`);
   return data as ReportRow[];
@@ -83,6 +85,29 @@ export function periodLabel(iso: string, group: Grouping) {
 }
 
 export const longDate = (iso: string) => fmt(iso, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+// Quotes a CSV cell, and stops spreadsheet apps from running it as a formula.
+const csvCell = (value: string) => {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+};
+
+// CSV download of report rows. No contact details: IDs, dates, services and statuses only.
+export function reportCsvResponse(rows: ReportRow[], { from, to }: ReportFilters) {
+  const lines = [
+    ["Appointment ID", "Date", "Day", "Time slot", "Service", "Status"],
+    ...rows.map((r) => [r.ref, r.appt_date, longDate(r.appt_date).split(",")[0], r.time_slot, r.service, r.status]),
+  ].map((line) => line.map(csvCell).join(","));
+
+  // The BOM makes Excel read the file as UTF-8 (time slots contain an en dash).
+  return new Response(`﻿${lines.join("\r\n")}\r\n`, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="appointments-${from}-to-${to}.csv"`,
+      "Cache-Control": "no-store",
+    },
+  });
+}
 
 export function summarize(rows: ReportRow[], { from, to, group }: ReportFilters, serviceNames: string[]) {
   // Every period in the range, including empty ones, so gaps show as zero.

@@ -51,20 +51,25 @@ export type StaffAppointment = ResidentAppointment & {
   phone: string | null;
   address: string | null;
   note: string | null;
+  follow_up_of: number | null; // the visit this follow-up was booked from (0015_follow_up_and_undo.sql)
 };
 
-export type StaffView = "today" | "upcoming" | "all";
+// Appointment IDs are shown as BHC-000012 (the database's generated ref column).
+export const refOf = (id: number) => `BHC-${String(id).padStart(6, "0")}`;
+
+export type StaffView = "today" | "upcoming" | "requests" | "all";
 
 export async function getStaffAppointments(services: string[], view: StaffView, search: string) {
   const today = manilaToday();
   let query = createSupabase()
     .from("appointments")
-    .select("id, ref, resident_name, email, phone, address, service, appt_date, time_slot, note, status")
+    .select("id, ref, resident_name, email, phone, address, service, appt_date, time_slot, note, status, follow_up_of")
     .in("service", services)
     .is("archived_at", null);
 
   if (view === "today") query = query.eq("appt_date", today);
   if (view === "upcoming") query = query.gte("appt_date", today).in("status", ["pending", "confirmed"]);
+  if (view === "requests") query = query.gte("appt_date", today).eq("status", "pending");
 
   // Letters, digits, spaces and hyphens only, so the text can't alter the filter.
   const term = search.replace(/[^\p{L}\p{N} -]/gu, "").trim().slice(0, 60);
@@ -92,10 +97,11 @@ export async function getStaffCounts(services: string[]) {
     base().eq("appt_date", today).eq("status", "completed"),
     base().eq("appt_date", today).eq("status", "missed"),
     base().gte("appt_date", today).in("status", ["pending", "confirmed"]),
+    base().gte("appt_date", today).eq("status", "pending"),
   ]);
   const failed = results.find((r) => r.error);
   if (failed?.error) throw new Error(`Could not load counts: ${failed.error.message}`);
 
-  const [todayTotal, completedToday, missedToday, upcomingOpen] = results.map((r) => r.count ?? 0);
-  return { todayTotal, completedToday, missedToday, upcomingOpen };
+  const [todayTotal, completedToday, missedToday, upcomingOpen, pending] = results.map((r) => r.count ?? 0);
+  return { todayTotal, completedToday, missedToday, upcomingOpen, pending };
 }
