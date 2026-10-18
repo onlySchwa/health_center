@@ -55,24 +55,23 @@ export function ServicesSkeleton() {
   return (
     <section className="bg-baan-mist">
       <div className="mx-auto max-w-310 px-6 py-24">
-        <div className="mb-14 flex flex-col items-center gap-3">
+        <div className="mb-14 flex flex-col items-center gap-4">
           <Bar className="h-[clamp(32px,4vw,46px)] w-72" />
-          <Bar className="h-5 w-full max-w-140" />
-          <Bar className="h-5 w-3/4 max-w-100" />
+          <Bar className="h-1 w-18" />
+          <Bar className="h-5 w-full max-w-80" />
         </div>
 
-        <div className="flex flex-wrap items-stretch gap-7">
-          <Bar className="min-h-105 min-w-0 flex-[1_1_380px] rounded-[18px]" />
-          <div className="grid min-w-0 flex-[999_1_520px] grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-2xl border border-baan-line bg-white p-6">
-                <Bar className="h-7 w-3/4" />
-                <Bar className="h-4 w-full" />
-                <Bar className="h-4 w-2/3" />
-                <Bar className="mt-auto h-5 w-24" />
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="overflow-hidden rounded-2xl bg-white">
+              <div className="flex h-45 items-center justify-center bg-[#EEF3F4]">
+                <Bar className="size-28 rounded-md" />
               </div>
-            ))}
-          </div>
+              <div className="flex justify-center px-4 py-5">
+                <Bar className="h-7 w-3/4" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>

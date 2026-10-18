@@ -100,14 +100,14 @@ export async function getResidents(): Promise<Resident[]> {
 
 export type ResidentAppointmentRow = Pick<
   AdminAppointment,
-  "id" | "ref" | "service" | "appt_date" | "time_slot" | "status" | "phone" | "address" | "archived_at"
+  "id" | "ref" | "service" | "appt_date" | "time_slot" | "status" | "phone" | "address" | "note" | "follow_up_of" | "archived_at"
 >;
 
 // Every appointment the resident booked, archived ones included, newest first.
 export async function getResidentAppointments(userId: string) {
   const { data, error } = await createSupabase()
     .from("appointments")
-    .select("id, ref, service, appt_date, time_slot, status, phone, address, archived_at")
+    .select("id, ref, service, appt_date, time_slot, status, phone, address, note, follow_up_of, archived_at")
     .eq("user_id", userId)
     .order("appt_date", { ascending: false })
     .limit(200);
@@ -236,7 +236,7 @@ export type AdminAppointment = StaffAppointment & {
 };
 
 const adminColumns =
-  "id, ref, resident_name, first_name, last_name, email, phone, address, service, appt_date, time_slot, note, status, email_for, email_status, email_error, updated_at, archived_at";
+  "id, ref, resident_name, first_name, last_name, email, phone, address, service, appt_date, time_slot, note, status, follow_up_of, email_for, email_status, email_error, updated_at, archived_at";
 
 // Filters on the confirmed/rejected email: "failed" includes appointments with no address to send to.
 export type EmailFilter = "failed" | "sent" | "none";

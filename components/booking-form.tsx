@@ -54,7 +54,7 @@ const datePresets = [
 
 // Today in the Philippines (YYYY-MM-DD), so the calendar greys out the same past days the server rejects.
 const manilaToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
-const subscribeNever = () => () => {};
+const subscribeNever = () => () => { };
 
 function Field({ id, label, icon: Icon, children, wide }: {
   id: string;
@@ -142,9 +142,10 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
     if (!form) return;
     try {
       const saved = sessionStorage.getItem(DRAFT_KEY);
-      if (!saved) return;
-      sessionStorage.removeItem(DRAFT_KEY);
-      const draft: Record<string, string> = JSON.parse(saved);
+      if (saved) sessionStorage.removeItem(DRAFT_KEY);
+      const draft: Record<string, string> = saved ? JSON.parse(saved) : {};
+      // Set when they arrived from a card on the Services page (/appointments?service=…).
+      const picked = new URLSearchParams(window.location.search).get("service");
       for (const field of draftFields) {
         if (field === "service" || field === "time" || field === "date") continue;
         const el = form.elements.namedItem(field);
@@ -154,12 +155,15 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
       // exists in the browser, so this can't move into useState's initializer.
       /* eslint-disable react-hooks/set-state-in-effect */
       if (draft.service) setServiceName(draft.service);
+      else if (picked && services.some((s) => s.name === picked)) setServiceName(picked);
       if (draft.time) setSlot(draft.time);
       if (draft.date) pickDate(parseISO(draft.date));
       /* eslint-enable react-hooks/set-state-in-effect */
     } catch {
       // Storage blocked or draft unreadable: start with an empty form.
     }
+    // Runs once on arrival; later service changes are the visitor's own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
