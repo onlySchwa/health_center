@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 const outfit = Outfit({
   variable: "--font-outfit",
