@@ -9,6 +9,10 @@ const serviceIcons: Record<string, LucideIcon> = {
   "Prenatal & maternal care": Baby,
   "Family planning": HeartHandshake,
 };
+export const serviceIcon = (name: string) => serviceIcons[name] ?? HeartPulse;
+
+// Opens the booking form with this service already chosen (components/booking-form.tsx reads ?service=).
+export const bookServiceHref = (name: string) => `/appointments?service=${encodeURIComponent(name)}#book`;
 
 export async function ServicesSection() {
   // Active services as admins describe them (Admin → Health services).
@@ -29,12 +33,11 @@ export async function ServicesSection() {
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6">
           {services.map((s) => {
-            const Icon = serviceIcons[s.name] ?? HeartPulse;
+            const Icon = serviceIcon(s.name);
             return (
-              // ?service= preselects this service in the booking form (components/booking-form.tsx).
               <Link
                 key={s.name}
-                href={`/appointments?service=${encodeURIComponent(s.name)}#book`}
+                href={bookServiceHref(s.name)}
                 className="group overflow-hidden rounded-2xl bg-white shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)] transition hover:-translate-y-1 hover:shadow-[0_16px_32px_-12px_rgba(0,0,0,0.3)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-baan-teal/30"
               >
                 <span className="flex h-45 items-center justify-center bg-[#EEF3F4]">

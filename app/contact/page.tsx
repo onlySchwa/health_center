@@ -42,11 +42,11 @@ export default async function ContactPage() {
                   className="block h-[clamp(320px,50vw,480px)] w-full border-0"
                 />
                 <figcaption className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+                  {/* Only what admins set in Settings; nothing made up if it can't be loaded. */}
                   <div className="min-w-0">
-                    <p className="font-bold tracking-[0.04em] text-baan-navy uppercase">
-                      {s?.clinicName ?? "Baan KM 3 Barangay Health Center"}
-                    </p>
-                    <p className="text-baan-muted">{s?.address ?? "Baan KM 3, Butuan City"}</p>
+                    {!s && <p className="text-baan-muted">Clinic details couldn&apos;t be loaded. Please try again later.</p>}
+                    {s?.clinicName && <p className="font-bold tracking-[0.04em] text-baan-navy uppercase">{s.clinicName}</p>}
+                    {s?.address && <p className="text-baan-muted">{s.address}</p>}
                     {(s?.clinicDays || s?.clinicHours) && (
                       <p className="text-baan-muted">{[s.clinicDays, s.clinicHours].filter(Boolean).join(" · ")}</p>
                     )}

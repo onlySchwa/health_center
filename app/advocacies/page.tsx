@@ -7,7 +7,7 @@ import AdvocaciesLoading from "./loading";
 
 export const metadata: Metadata = {
   title: "Advocacies — Baan Health Care",
-  description: "Bakuna for every child, safe motherhood, heart-healthy living and disease prevention in Baan KM 3.",
+  description: "Bakuna for every child, safe motherhood, and deworming and disease prevention in Baan KM 3.",
 };
 
 export default function AdvocaciesPage() {
