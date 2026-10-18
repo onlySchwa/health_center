@@ -1,9 +1,31 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { activeServices, getServices, type Service } from "@/lib/services";
+
+const dayNames = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const formatDays = (days: number[]) =>
+  days.join() === "1,2,3,4,5" ? "Monday to Friday" : days.map((d) => dayNames[d]).join(", ");
+
+// "Which days can I book?", from the services' days as admins set them (Admin → Health services).
+// null = services couldn't be loaded: say how the calendar works without stating any days.
+function bookingDaysAnswer(services: Service[] | null) {
+  if (!services) return "Each service shows the days and times it's offered, and the booking calendar only lets you pick those.";
+  if (services.length === 0) return "Online booking is paused right now. Please call or visit the health center.";
+  const groups = new Map<string, string[]>();
+  for (const s of services) {
+    const days = formatDays([...s.days].sort());
+    groups.set(days, [...(groups.get(days) ?? []), s.name]);
+  }
+  const days =
+    groups.size === 1
+      ? `${[...groups.keys()][0]}.`
+      : [...groups].map(([d, names]) => `${names.join(", ")}: ${d}.`).join(" ");
+  return `${days} The calendar only lets you pick the days and times each service is offered, and skips dates the health center has marked as closed.`;
+}
 
 // Answers describe how booking actually works on this site; keep them in step with it.
-const faqs = [
+const faqs = (services: Service[] | null) => [
   {
     q: "How do I book an appointment?",
     a: "Fill in the booking form: your details, the service, a morning or afternoon slot and a date. It takes about a minute. You'll need to sign in first, and anything you've typed stays filled in.",
@@ -18,7 +40,7 @@ const faqs = [
   },
   {
     q: "Which days can I book?",
-    a: "Weekdays only. Each service shows the days and times it's offered, and the calendar only lets you pick those. We're closed on weekends and holidays.",
+    a: bookingDaysAnswer(services),
   },
   {
     q: "Can I cancel my appointment?",
@@ -31,7 +53,11 @@ const faqs = [
 ];
 
 // Frequently asked questions on the home page.
-export function FaqSection() {
+export async function FaqSection() {
+  const services = await getServices().then(activeServices, (error) => {
+    console.error(error);
+    return null;
+  });
   return (
     <section id="faq" aria-labelledby="faq-h" className="bg-baan-mist">
       <div className="mx-auto flex max-w-200 flex-col items-center gap-12 px-6 py-24">
@@ -50,7 +76,7 @@ export function FaqSection() {
         </div>
 
         <Accordion className="gap-3 overflow-visible rounded-none border-0">
-          {faqs.map((f) => (
+          {faqs(services).map((f) => (
             <AccordionItem
               key={f.q}
               value={f.q}

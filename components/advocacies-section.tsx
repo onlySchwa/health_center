@@ -3,7 +3,6 @@ import clinicInterior from "@/public/ABOUT/image1.jpg";
 import commitmentSigning from "@/public/background-for-page4.jpg";
 import childImmunization from "@/public/Child Immunization.jpg";
 import launchEvent from "@/public/landing-1.jpg";
-import bloodSugarCheck from "@/public/landing-3.jpg";
 import healthTeam from "@/public/landing-4.jpg";
 
 const stories: Story[] = [
@@ -38,17 +37,6 @@ const stories: Story[] = [
     text: "Regular check-ups for a safe pregnancy and healthy delivery, from the first visit to after the baby arrives.",
     links: [
       { label: "Book prenatal care", href: "/appointments" },
-      { label: "Our services", href: "/services" },
-    ],
-  },
-  {
-    image: bloodSugarCheck,
-    alt: "A health worker checks a patient's blood sugar at the clinic table",
-    tag: "Advocacy",
-    title: "Heart-healthy living",
-    text: "Blood sugar and BP monitoring that helps residents live heart-healthy lives and prevent disease before it starts.",
-    links: [
-      { label: "Book a check-up", href: "/appointments" },
       { label: "Our services", href: "/services" },
     ],
   },

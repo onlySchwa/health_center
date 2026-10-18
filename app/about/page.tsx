@@ -68,7 +68,7 @@ export default function AboutPage() {
               className="h-80 w-full border border-baan-line object-cover"
             />
             <figcaption className="text-center text-[15px] text-baan-muted italic">
-              Blood pressure check at the front desk
+              At the front desk
             </figcaption>
           </figure>
         </section>
