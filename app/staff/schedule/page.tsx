@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { DatePicker } from "@/components/date-picker";
 import { MinDelay } from "@/components/min-delay";
 import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
 import { statusStyle } from "@/lib/appointment-options";
@@ -116,10 +117,10 @@ async function ScheduleContent({ searchParams }: { searchParams: PageProps<"/sta
           <form action="/staff/schedule" className="flex items-center gap-2">
             {mode === "week" && <input type="hidden" name="view" value="week" />}
             <label htmlFor="sched-date" className="sr-only">Go to date</label>
-            <input
+            <DatePicker
               id="sched-date"
-              type="date"
               name="date"
+              required
               defaultValue={date}
               className="min-h-11 rounded-xl border border-baan-line bg-white px-3 text-[15px] focus:border-baan-teal focus:outline-3 focus:outline-[#7FC7C4]"
             />

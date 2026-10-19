@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ActivityAction, roleStyle, show } from "@/components/activity-action";
+import { DatePicker } from "@/components/date-picker";
 import { MinDelay } from "@/components/min-delay";
 import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
 import {
@@ -125,11 +126,11 @@ async function AuditContent({ searchParams }: { searchParams: PageProps<"/admin/
           </label>
           <label className={fieldLabel}>
             From
-            <input type="date" name="from" defaultValue={filters.from} className={field} />
+            <DatePicker name="from" defaultValue={filters.from} className={field} />
           </label>
           <label className={fieldLabel}>
             To
-            <input type="date" name="to" defaultValue={filters.to} className={field} />
+            <DatePicker name="to" defaultValue={filters.to} className={field} />
           </label>
           <button type="submit" className="min-h-11 rounded-full bg-baan-orange px-6 font-bold text-white hover:brightness-90">
             Apply

@@ -179,6 +179,33 @@ export async function bookFollowUp(fromId: number, input: Record<string, unknown
   return { ok: true };
 }
 
+// Staff record a walk-in for today, saved as confirmed (see staff_record_walk_in in 0016_walk_ins.sql).
+// Walk-ins have no account or email, so nothing is sent.
+export async function recordWalkIn(input: Record<string, unknown>): Promise<ActionResult & { ref?: string }> {
+  if (!(await getStaffAccess())) return { ok: false, error: "Not allowed." };
+  const result = readAppointment({ ...input, date: manilaToday() });
+  if (!result.appointment) return { ok: false, error: result.error };
+  const { appointment } = result;
+  if (!appointment.phone) return { ok: false, error: "Please enter the mobile number." };
+  if (!appointment.address) return { ok: false, error: "Please enter the address." };
+
+  const { data: ref, error } = await createSupabase().rpc("staff_record_walk_in", {
+    p_first_name: appointment.first_name,
+    p_last_name: appointment.last_name,
+    p_phone: appointment.phone,
+    p_address: appointment.address,
+    p_service: appointment.service,
+    p_slot: appointment.time_slot,
+    p_note: appointment.note,
+  });
+  if (error) {
+    if (error.code !== "P0001") console.error("recordWalkIn failed:", error.message);
+    return { ok: false, error: staffError(error, "The walk-in couldn't be recorded. Please try again.") };
+  }
+  refresh();
+  return { ok: true, ref: ref as string };
+}
+
 // Staff undo their own completed/missed mark within 10 minutes (see staff_undo_mark in 0015).
 export async function undoMark(id: number): Promise<ActionResult> {
   if (!(await getStaffAccess()) || !Number.isInteger(id)) return { ok: false, error: "Not allowed." };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { DatePicker } from "@/components/date-picker";
 import { saveSettings, sendAdminTestEmail } from "@/lib/actions";
 import type { ClinicSettings } from "@/lib/settings";
 
@@ -144,7 +145,7 @@ export function SettingsForm({ settings: s }: { settings: ClinicSettings }) {
                 <label className="sr-only" htmlFor="closed-add">
                   Add a closed date
                 </label>
-                <input id="closed-add" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className={`${field} max-w-48`} />
+                <DatePicker id="closed-add" required value={newDate} onChange={setNewDate} className={`${field} w-48`} />
                 <button
                   type="button"
                   onClick={addDate}

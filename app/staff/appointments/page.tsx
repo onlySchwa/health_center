@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { MinDelay } from "@/components/min-delay";
 import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
-import { FollowUpButton, StaffActions, UndoButton } from "@/components/staff-actions";
+import { FollowUpButton, StaffActions, UndoButton, WalkInForm } from "@/components/staff-actions";
 import { statusStyle } from "@/lib/appointment-options";
 import { formatApptDate, getStaffAccess, getStaffAppointments, manilaToday, refOf, type StaffView } from "@/lib/appointments";
 import { getServices } from "@/lib/services";
@@ -111,6 +111,12 @@ async function AppointmentsContent({ searchParams }: { searchParams: PageProps<"
           </p>
         )}
 
+        {staff.services.length > 0 && (
+          <WalkInForm
+            services={services.filter((s) => s.active && staff.services.includes(s.name) && s.timeSlots.length > 0)}
+          />
+        )}
+
         <form action="/staff/appointments" role="search" className="flex flex-wrap gap-3">
           <input type="hidden" name="view" value={view} />
           <label htmlFor="staff-q" className="sr-only">
@@ -191,6 +197,7 @@ async function AppointmentsContent({ searchParams }: { searchParams: PageProps<"
                       </td>
                       <td className="px-4 py-4">
                         {a.service}
+                        {a.walk_in && <span className="mt-1 block text-xs font-semibold text-baan-orange">Walk-in</span>}
                         {a.follow_up_of && (
                           <span className="mt-1 block text-xs font-semibold text-baan-teal">Follow-up of {refOf(a.follow_up_of)}</span>
                         )}
@@ -217,7 +224,11 @@ async function AppointmentsContent({ searchParams }: { searchParams: PageProps<"
                           {a.status === "completed" && rowState.withFollowUp.has(a.id) && (
                             <span className="text-sm font-semibold text-baan-teal">Next visit booked</span>
                           )}
-                          {choices.length === 0 && a.status === "confirmed" && <span className="text-sm text-baan-muted">Not due yet</span>}
+                          {choices.length === 0 && a.status === "confirmed" && (
+                            <span className="text-sm text-baan-muted">
+                              You can mark this completed or missed on {d.month} {d.day}.
+                            </span>
+                          )}
                           {choices.length === 0 &&
                             (a.status === "pending" || a.status === "cancelled" || a.status === "rejected" ||
                               (a.status === "missed" && !rowState.undoUntil.has(a.id))) && (
