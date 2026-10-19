@@ -47,7 +47,7 @@ export default function AboutPage() {
 
         {/* Our story */}
         <section id="story" className="mx-auto flex max-w-310 scroll-mt-4 flex-wrap items-start gap-12 px-6 pt-14 pb-18">
-          <div className="flex min-w-0 flex-[999_1_520px] flex-col gap-5 text-justify text-[19px] leading-[1.7] text-baan-muted">
+          <div className="flex min-w-0 flex-[999_1_520px] flex-col gap-5 text-[19px] sm:text-justify leading-[1.7] text-baan-muted">
             <p>
               Baan Health Care is the barangay health center of Baan KM 3, Butuan City — a team of barangay health
               workers, nurses and midwives committed to giving every family accessible, equitable and quality care. We
@@ -124,14 +124,15 @@ export default function AboutPage() {
             </p>
           </div>
           <figure className="flex min-w-0 flex-[1_1_400px] flex-col gap-3">
-            <video
-              controls
-              preload="none"
-              poster="/ABOUT/image1.jpg"
-              className="aspect-video w-full rounded-3xl bg-baan-navy object-cover shadow-[0_18px_40px_rgba(14,59,74,0.22)]"
-            >
-              <source src="/ABOUT/ABOUT-PAGE.mp4" type="video/mp4" />
-            </video>
+            {/* Facebook reel (9:16). The src's width/height match the largest size it's shown at. */}
+            <iframe
+              src="https://www.facebook.com/plugins/video.php?height=498&href=https%3A%2F%2Fwww.facebook.com%2Freel%2F805452429294261%2F&show_text=false&width=280&t=0"
+              title="A day at Baan KM 3 Health Center (video on Facebook)"
+              loading="lazy"
+              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+              allowFullScreen
+              className="mx-auto aspect-[9/16] w-full max-w-70 overflow-hidden rounded-3xl border-0 bg-baan-navy shadow-[0_18px_40px_rgba(14,59,74,0.22)]"
+            />
             <figcaption className="text-center text-[15px] text-baan-muted italic">
               A day at Baan KM 3 Health Center
             </figcaption>

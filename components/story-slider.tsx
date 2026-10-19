@@ -88,6 +88,11 @@ export function StorySlider({ stories, label }: { stories: Story[]; label: strin
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,38,50,.55)_0%,rgba(8,38,50,.05)_28%,rgba(8,38,50,.15)_52%,rgba(8,38,50,.88)_100%)]"
       />
+      {/* On phones the text covers most of the photo, so darken everything below the top bar. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_8%,rgba(8,38,50,.8)_38%)] sm:hidden"
+      />
 
       <div className="absolute inset-x-6 top-6 flex items-center justify-between gap-3 sm:inset-x-8 sm:top-7">
         <span className="inline-flex min-h-9 items-center rounded-full bg-white/18 px-4 text-sm font-semibold text-white backdrop-blur-md">
