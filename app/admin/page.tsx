@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { MinDelay } from "@/components/min-delay";
 import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
+import { clickableNotice, NoticeArrow } from "@/components/staff-notice";
 import { getAdminCounts, getUpcomingAppointments, isAdmin } from "@/lib/admin";
 import { statusStyle, type Status } from "@/lib/appointment-options";
 import { formatApptDate } from "@/lib/appointments";
@@ -161,20 +162,30 @@ async function OverviewContent({ searchParams }: { searchParams: PageProps<"/adm
                 <p className="text-sm text-[#2F5654]">No unsent emails, pending requests or weekend visits.</p>
               </li>
             )}
-            {notices.map((n) => (
-              <li
-                key={n.title}
-                className={`flex flex-col gap-1 rounded-xl px-4 py-3.5 ${n.tone === "alert" ? "bg-[#FBE9E9] text-[#5E2A2A]" : "bg-[#FFF1E8] text-[#5E3A28]"}`}
-              >
-                <strong className={n.tone === "alert" ? "text-[#7F2222]" : "text-[#7E3210]"}>{n.title}</strong>
-                <p className="text-sm leading-snug">{n.text}</p>
-                {n.href && (
-                  <Link href={n.href} className="text-sm font-bold underline">
-                    {n.link}
+            {notices.map((n) => {
+              const box = n.tone === "alert" ? "bg-[#FBE9E9] text-[#5E2A2A]" : "bg-[#FFF1E8] text-[#5E3A28]";
+              const body = (
+                <>
+                  <strong className={n.tone === "alert" ? "text-[#7F2222]" : "text-[#7E3210]"}>{n.title}</strong>
+                  <p className="text-sm leading-snug">{n.text}</p>
+                </>
+              );
+              return n.href ? (
+                <li key={n.title}>
+                  <Link href={n.href} className={`${clickableNotice} ${box}`}>
+                    {body}
+                    <span className="inline-flex items-center gap-1 text-sm font-bold">
+                      {n.link}
+                      <NoticeArrow />
+                    </span>
                   </Link>
-                )}
-              </li>
-            ))}
+                </li>
+              ) : (
+                <li key={n.title} className={`flex flex-col gap-1 rounded-xl px-4 py-3.5 ${box}`}>
+                  {body}
+                </li>
+              );
+            })}
           </ul>
         </section>
       </div>

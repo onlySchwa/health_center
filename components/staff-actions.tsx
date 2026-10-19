@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { bookFollowUp, markAppointment, reviewAppointment, undoMark } from "@/lib/actions";
+import { DatePicker } from "@/components/date-picker";
+import { bookFollowUp, markAppointment, recordWalkIn, reviewAppointment, undoMark } from "@/lib/actions";
 
 const field =
   "min-h-10 rounded-xl border border-baan-line bg-white px-3 text-sm focus:border-baan-teal focus:outline-3 focus:outline-[#7FC7C4]";
@@ -125,7 +126,7 @@ export function FollowUpButton({ id, slots, today }: { id: number; slots: string
     <form onSubmit={submit} className="flex flex-col gap-2">
       <label className="flex flex-col gap-1 text-xs font-semibold text-baan-muted">
         Date
-        <input type="date" name="date" min={today} required className={field} />
+        <DatePicker name="date" min={today} required className={field} />
       </label>
       <label className="flex flex-col gap-1 text-xs font-semibold text-baan-muted">
         Time
@@ -143,6 +144,109 @@ export function FollowUpButton({ id, slots, today }: { id: number; slots: string
       <div className="flex gap-2">
         <button type="submit" disabled={isPending} className={`${smallButton} bg-baan-teal text-white hover:brightness-110 disabled:opacity-60`}>
           {isPending ? "Booking…" : "Book"}
+        </button>
+        <button type="button" disabled={isPending} onClick={() => setOpen(false)} className={`${smallButton} text-baan-muted hover:text-baan-navy`}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// Records a resident who came in without booking online, for today (they're saved as confirmed).
+// services: the staff member's services with their time slots.
+export function WalkInForm({ services }: { services: { name: string; timeSlots: string[] }[] }) {
+  const [open, setOpen] = useState(false);
+  const [service, setService] = useState(services[0]?.name ?? "");
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+  const [isPending, startTransition] = useTransition();
+  const slots = services.find((s) => s.name === service)?.timeSlots ?? [];
+  const label = "flex flex-col gap-1 text-xs font-semibold text-baan-muted";
+
+  function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
+    setError("");
+    startTransition(async () => {
+      const result = await recordWalkIn(data);
+      if (result.ok) {
+        setDone(result.ref ?? "");
+        setOpen(false);
+        form.reset();
+      } else setError(result.error);
+    });
+  }
+
+  if (!open) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setDone("");
+            setOpen(true);
+          }}
+          className={`${smallButton} self-start bg-baan-teal text-white hover:brightness-110`}
+        >
+          Record walk-in visit
+        </button>
+        {done && <span className="text-sm font-semibold text-baan-teal">Walk-in recorded ({done}). It&apos;s in Today below.</span>}
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3 rounded-xl border border-baan-line p-5">
+      <p className="text-sm text-baan-muted">
+        For residents who came in without booking online. Saved for today as confirmed; mark it completed after the visit.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          First name
+          <input name="firstName" required maxLength={50} className={field} />
+        </label>
+        <label className={label}>
+          Last name
+          <input name="lastName" required maxLength={50} className={field} />
+        </label>
+        <label className={label}>
+          Mobile number
+          <input name="phone" type="tel" required maxLength={20} pattern="[0-9+ \-]{7,20}" className={field} />
+        </label>
+        <label className={label}>
+          Address
+          <input name="address" required minLength={5} maxLength={200} className={field} />
+        </label>
+        <label className={label}>
+          Service
+          <select name="service" required value={service} onChange={(e) => setService(e.target.value)} className={field}>
+            {services.map((s) => (
+              <option key={s.name}>{s.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className={label}>
+          Time
+          <select name="time" required className={field}>
+            {slots.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label className={label}>
+        Note (optional)
+        <textarea name="note" maxLength={500} rows={2} className={`${field} py-2`} />
+      </label>
+      {error && (
+        <span role="alert" className="text-sm font-semibold text-[#9B2C2C]">
+          {error}
+        </span>
+      )}
+      <div className="flex gap-2">
+        <button type="submit" disabled={isPending} className={`${smallButton} bg-baan-teal text-white hover:brightness-110 disabled:opacity-60`}>
+          {isPending ? "Saving…" : "Record visit"}
         </button>
         <button type="button" disabled={isPending} onClick={() => setOpen(false)} className={`${smallButton} text-baan-muted hover:text-baan-navy`}>
           Cancel

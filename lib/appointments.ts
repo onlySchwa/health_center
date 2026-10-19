@@ -63,7 +63,7 @@ export async function getStaffAppointments(services: string[], view: StaffView, 
   const today = manilaToday();
   let query = createSupabase()
     .from("appointments")
-    .select("id, ref, resident_name, email, phone, address, service, appt_date, time_slot, note, status, follow_up_of")
+    .select("id, ref, resident_name, email, phone, address, service, appt_date, time_slot, note, status, follow_up_of, walk_in")
     .in("service", services)
     .is("archived_at", null);
 
@@ -80,7 +80,7 @@ export async function getStaffAppointments(services: string[], view: StaffView, 
     .order("time_slot")
     .limit(200);
   if (error) throw new Error(`Could not load appointments: ${error.message}`);
-  return data as StaffAppointment[];
+  return data as (StaffAppointment & { walk_in: boolean })[]; // recorded at the desk (0016_walk_ins.sql)
 }
 
 export async function getStaffCounts(services: string[]) {

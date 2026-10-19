@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { DatePicker } from "@/components/date-picker";
 import { adminUpdateAppointment, deleteAppointment, setAppointmentArchived, type ActionResult } from "@/lib/actions";
 import { statusStyle, timeSlots, type Status } from "@/lib/appointment-options";
 
@@ -168,7 +169,7 @@ export function AdminRowActions({ appointment: a, services }: { appointment: App
             </label>
             <label className="flex flex-col gap-1 font-semibold">
               Date
-              <input name="date" type="date" required defaultValue={a.appt_date} className={field} />
+              <DatePicker name="date" required defaultValue={a.appt_date} className={field} />
             </label>
             <label className="flex flex-col gap-1 font-semibold">
               Time

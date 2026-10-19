@@ -1,3 +1,4 @@
+import { DatePicker } from "@/components/date-picker";
 import { statusStyle } from "@/lib/appointment-options";
 import { filtersQuery, groupings, longDate, reportStatuses, type ReportFilters, type summarize } from "@/lib/reports";
 
@@ -58,11 +59,11 @@ export function ReportView({ basePath, filters, services, allLabel, report }: Re
         </label>
         <label className={fieldLabel}>
           From
-          <input type="date" name="from" defaultValue={filters.from} className={field} />
+          <DatePicker name="from" defaultValue={filters.from} className={field} />
         </label>
         <label className={fieldLabel}>
           To
-          <input type="date" name="to" defaultValue={filters.to} className={field} />
+          <DatePicker name="to" defaultValue={filters.to} className={field} />
         </label>
         <label className={fieldLabel}>
           Service
