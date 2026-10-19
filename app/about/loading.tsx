@@ -42,7 +42,9 @@ export default function AboutLoading() {
           <Skeleton className="h-5 w-full bg-baan-line" />
           <Skeleton className="h-5 w-1/2 bg-baan-line" />
         </div>
-        <Skeleton className="aspect-video min-w-0 flex-[1_1_400px] rounded-3xl bg-baan-line" />
+        <div className="flex min-w-0 flex-[1_1_400px] justify-center">
+          <Skeleton className="aspect-[9/16] w-full max-w-70 rounded-3xl bg-baan-line" />
+        </div>
       </section>
     </main>
   );

@@ -5,9 +5,15 @@ import { usePathname } from "next/navigation";
 import { navLinks } from "@/lib/nav";
 
 // Plain list, also used as the Suspense fallback while the current path streams in.
-export function NavLinkList({ pathname }: { pathname?: string }) {
+export function NavLinkList({
+  pathname,
+  className = "flex flex-wrap items-center gap-x-6 gap-y-1",
+}: {
+  pathname?: string;
+  className?: string;
+}) {
   return (
-    <nav aria-label="Main" className="flex flex-wrap items-center gap-x-6 gap-y-1">
+    <nav aria-label="Main" className={className}>
       {navLinks.map((link) => {
         const active = pathname === link.href;
         return (
@@ -27,6 +33,6 @@ export function NavLinkList({ pathname }: { pathname?: string }) {
   );
 }
 
-export function NavLinks() {
-  return <NavLinkList pathname={usePathname()} />;
+export function NavLinks({ className }: { className?: string }) {
+  return <NavLinkList pathname={usePathname()} className={className} />;
 }
