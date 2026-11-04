@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ChevronDown,
   CircleCheck,
+  HeartPulse,
   Lock,
   Mail,
   MapPin,
@@ -25,6 +26,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { requestAppointment } from "@/lib/actions";
 import { timeSlots } from "@/lib/appointment-options";
+import {
+  civilStatusOptions,
+  conditionOptions,
+  intakeFields,
+  sexOptions,
+  type IntakeDefaults,
+} from "@/lib/health-intake";
 import type { Service } from "@/lib/services";
 import type { BookingRules } from "@/lib/settings";
 
@@ -35,7 +43,7 @@ const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 // Holds what a signed-out visitor typed while they sign in. sessionStorage is
 // per-tab and cleared when the tab closes; we also delete it as soon as it's restored.
 const DRAFT_KEY = "baan-booking-draft";
-const draftFields = ["email", "firstName", "lastName", "phone", "address", "service", "time", "date", "note"];
+const draftFields = ["email", "firstName", "lastName", "phone", "address", "service", "time", "date", "note", ...intakeFields];
 
 const fieldClass =
   "peer min-h-11 w-full rounded-xl border border-baan-line bg-baan-mist/60 px-3.5 py-2 text-base text-baan-ink transition-colors placeholder:text-[#7A9095] hover:border-[#B9C9CC] focus:border-baan-teal focus:bg-white focus:outline-none focus:ring-4 focus:ring-baan-teal/15";
@@ -76,6 +84,25 @@ function Field({ id, label, icon: Icon, children, wide }: {
   );
 }
 
+// A collapsible part of the health section. Starts open when it was filled in from the last booking,
+// so the resident can check it; closed fields are still sent with the form.
+function IntakeGroup({ title, filled, children }: { title: string; filled: boolean; children: React.ReactNode }) {
+  return (
+    <details open={filled} className="group col-span-full rounded-xl border border-baan-line">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 font-semibold text-baan-navy">
+        <span>
+          {title}
+          <span className="ml-1.5 text-[13px] font-normal text-baan-muted">
+            {filled ? "(from your last booking, check it\u2019s still right)" : "(optional)"}
+          </span>
+        </span>
+        <ChevronDown aria-hidden className="size-5 flex-none text-[#7A9095] transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 border-t border-baan-line px-4 py-4 sm:grid-cols-2">{children}</div>
+    </details>
+  );
+}
+
 function SectionHeading({ step, title }: { step: number; title: string }) {
   return (
     <div className="col-span-full flex items-center gap-3 pt-1">
@@ -93,7 +120,8 @@ type BookingFormProps = {
   services: BookingService[];
   // Same-day booking, how far ahead and closed dates (Admin → Settings). Full slots are checked on submit.
   rules: BookingRules;
-  defaults?: { firstName?: string; lastName?: string; email?: string; phone?: string };
+  // intake: background from the resident's last health form, so they don't type it again.
+  defaults?: { firstName?: string; lastName?: string; email?: string; phone?: string; intake?: IntakeDefaults | null };
 };
 
 // Signed-in residents' requests are saved; signed-out visitors are sent to sign in
@@ -115,6 +143,7 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
   const [serviceName, setServiceName] = useState(services[0]?.name ?? "");
   const [slot, setSlot] = useState("");
   const service = services.find((s) => s.name === serviceName) ?? services[0];
+  const intake = defaults?.intake;
   // The chosen slot if this service offers it, else its first slot.
   const timeSlot = service?.timeSlots.includes(slot) ? slot : (service?.timeSlots[0] ?? "");
   const firstDay = today && (rules.allowSameDay ? today : addDays(today, 1));
@@ -143,13 +172,18 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
     try {
       const saved = sessionStorage.getItem(DRAFT_KEY);
       if (saved) sessionStorage.removeItem(DRAFT_KEY);
-      const draft: Record<string, string> = saved ? JSON.parse(saved) : {};
+      const draft: Record<string, string> & { conditions?: string[] } = saved ? JSON.parse(saved) : {};
       // Set when they arrived from a card on the Services page (/appointments?service=…).
       const picked = new URLSearchParams(window.location.search).get("service");
       for (const field of draftFields) {
         if (field === "service" || field === "time" || field === "date") continue;
         const el = form.elements.namedItem(field);
         if (draft[field] && el && "value" in el) el.value = draft[field];
+      }
+      if (Array.isArray(draft.conditions)) {
+        for (const box of form.querySelectorAll<HTMLInputElement>('input[name="conditions"]')) {
+          box.checked = draft.conditions.includes(box.value);
+        }
       }
       // Service, time and date live in state, so restore them there. sessionStorage only
       // exists in the browser, so this can't move into useState's initializer.
@@ -170,7 +204,8 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
     e.preventDefault();
     if (!isLoaded || saving) return;
     const data = new FormData(e.currentTarget);
-    const fields = Object.fromEntries(draftFields.map((f) => [f, String(data.get(f) ?? "")]));
+    const fields: Record<string, string | string[]> = Object.fromEntries(draftFields.map((f) => [f, String(data.get(f) ?? "")]));
+    fields.conditions = data.getAll("conditions").map(String);
     // A hidden input can't be marked required, so check the calendar here.
     if (!fields.date) {
       setError("Please choose a date.");
@@ -375,6 +410,91 @@ export function BookingForm({ services, rules, defaults }: BookingFormProps) {
         <Field id="f-note" label={<>Anything we should know?{optional}</>} wide>
           <textarea id="f-note" name="note" rows={2} placeholder="e.g. second dose, follow-up visit" maxLength={500} className={`${fieldClass} resize-y`} />
         </Field>
+
+        <SectionHeading step={3} title="Health information" />
+        <p className="col-span-full -mt-1.5 flex gap-2 text-sm text-baan-muted">
+          <HeartPulse aria-hidden className="mt-0.5 size-4 flex-none text-baan-teal" />
+          The nurse reads this before your visit, so there&apos;s nothing to fill out at the health center. Only the
+          reason is required.
+        </p>
+        <Field id="f-reason" label="Main reason for your visit" wide>
+          <textarea id="f-reason" name="reason" rows={2} placeholder="e.g. fever and cough, monthly prenatal check-up" minLength={3} maxLength={300} required className={`${fieldClass} resize-y`} />
+        </Field>
+        <Field id="f-symptoms" label={<>Symptoms{optional}</>}>
+          <textarea id="f-symptoms" name="symptoms" rows={2} placeholder="e.g. headache, sore throat" maxLength={500} className={`${fieldClass} resize-y`} />
+        </Field>
+        <Field id="f-duration" label={<>Since when?{optional}</>}>
+          <input id="f-duration" name="symptomDuration" type="text" placeholder="e.g. 3 days" maxLength={60} className={fieldClass} />
+        </Field>
+
+        <IntakeGroup title="Medical background" filled={Boolean(intake)}>
+          <Field id="f-allergies" label={<>Allergies{optional}</>}>
+            <input id="f-allergies" name="allergies" type="text" placeholder="Food, medicine, or none" defaultValue={intake?.allergies ?? ""} maxLength={300} className={fieldClass} />
+          </Field>
+          <Field id="f-meds" label={<>Medicines you take{optional}</>}>
+            <input id="f-meds" name="medications" type="text" placeholder="Name and dose, or none" defaultValue={intake?.medications ?? ""} maxLength={300} className={fieldClass} />
+          </Field>
+          <fieldset className="col-span-full flex flex-col gap-1.5">
+            <legend className={`${labelClass} mb-1.5`}>Existing conditions{optional}</legend>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {conditionOptions.map((c) => (
+                <label key={c} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-baan-line bg-baan-mist/60 px-3.5 text-[15px] has-checked:border-baan-teal has-checked:bg-baan-teal/5">
+                  <input type="checkbox" name="conditions" value={c} defaultChecked={intake?.conditions?.includes(c)} className="size-4 accent-baan-teal" />
+                  {c}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <Field id="f-other" label={<>Other conditions or past operations{optional}</>} wide>
+            <input id="f-other" name="otherConditions" type="text" defaultValue={intake?.other_conditions ?? ""} maxLength={200} className={fieldClass} />
+          </Field>
+        </IntakeGroup>
+
+        <IntakeGroup title="Personal details" filled={Boolean(intake)}>
+          <Field id="f-birth" label={<>Birthdate{optional}</>}>
+            <input id="f-birth" name="birthdate" type="date" min="1900-01-01" max={todayIso ?? undefined} defaultValue={intake?.birthdate ?? ""} className={fieldClass} />
+          </Field>
+          <Field id="f-sex" label={<>Sex{optional}</>}>
+            <select id="f-sex" name="sex" defaultValue={intake?.sex ?? ""} className={`${fieldClass} appearance-none pr-10`}>
+              <option value="">Choose</option>
+              {Object.entries(sexOptions).map(([id, label]) => (
+                <option key={id} value={id}>{label}</option>
+              ))}
+            </select>
+            <ChevronDown aria-hidden className="pointer-events-none absolute top-3 right-3.5 size-5 text-[#7A9095]" />
+          </Field>
+          <Field id="f-civil" label={<>Civil status{optional}</>}>
+            <select id="f-civil" name="civilStatus" defaultValue={intake?.civil_status ?? ""} className={`${fieldClass} appearance-none pr-10`}>
+              <option value="">Choose</option>
+              {Object.entries(civilStatusOptions).map(([id, label]) => (
+                <option key={id} value={id}>{label}</option>
+              ))}
+            </select>
+            <ChevronDown aria-hidden className="pointer-events-none absolute top-3 right-3.5 size-5 text-[#7A9095]" />
+          </Field>
+          <Field id="f-philhealth" label={<>PhilHealth number{optional}</>}>
+            <input id="f-philhealth" name="philhealthNo" type="text" inputMode="numeric" placeholder="12-345678901-2" defaultValue={intake?.philhealth_no ?? ""} pattern="[0-9]{2}-?[0-9]{9}-?[0-9]" maxLength={14} className={fieldClass} />
+          </Field>
+          <Field id="f-ec-name" label={<>Emergency contact{optional}</>}>
+            <input id="f-ec-name" name="emergencyName" type="text" placeholder="Name and relationship" defaultValue={intake?.emergency_name ?? ""} maxLength={100} className={fieldClass} />
+          </Field>
+          <Field id="f-ec-phone" label={<>Their mobile number{optional}</>}>
+            <input id="f-ec-phone" name="emergencyPhone" type="tel" placeholder="09XX XXX XXXX" defaultValue={intake?.emergency_phone ?? ""} pattern="[0-9+ \-]{7,20}" maxLength={20} className={fieldClass} />
+          </Field>
+        </IntakeGroup>
+
+        <IntakeGroup title="Measurements" filled={false}>
+          <Field id="f-weight" label={<>Weight in kg{optional}</>}>
+            <input id="f-weight" name="weightKg" type="number" inputMode="decimal" min={1} max={300} step={0.1} placeholder="e.g. 58" defaultValue={intake?.weight_kg ?? ""} className={fieldClass} />
+          </Field>
+          <Field id="f-height" label={<>Height in cm{optional}</>}>
+            <input id="f-height" name="heightCm" type="number" inputMode="decimal" min={30} max={250} step={0.1} placeholder="e.g. 155" defaultValue={intake?.height_cm ?? ""} className={fieldClass} />
+          </Field>
+          <Field id="f-lmp" label={<>First day of last period{optional}</>} wide>
+            <input id="f-lmp" name="lastPeriod" type="date" max={todayIso ?? undefined} className={`${fieldClass} sm:max-w-80`} />
+          </Field>
+          <p className="col-span-full -mt-2 text-sm text-baan-muted">For women, especially for prenatal care and family planning.</p>
+        </IntakeGroup>
 
         {error && (
           <p role="alert" className="col-span-full rounded-xl border border-[#F2C9C9] bg-[#FBE9E9] px-4 py-3 font-semibold text-[#9B2C2C]">

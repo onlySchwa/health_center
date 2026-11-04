@@ -16,12 +16,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type Filter = "all" | "resident" | "staff" | "admin" | "deactivated";
+type Filter = "all" | "resident" | "staff" | "nurse" | "admin" | "deactivated";
 
 const filters: { id: Filter; label: string; match: (a: Account) => boolean }[] = [
   { id: "all", label: "All", match: () => true },
   { id: "resident", label: "Residents", match: (a) => a.role === "resident" },
   { id: "staff", label: "Staff", match: (a) => a.role === "staff" },
+  { id: "nurse", label: "Nurses", match: (a) => a.role === "nurse" },
   { id: "admin", label: "Admins", match: (a) => a.role === "admin" },
   { id: "deactivated", label: "Deactivated", match: (a) => a.banned },
 ];
@@ -29,6 +30,7 @@ const filters: { id: Filter; label: string; match: (a: Account) => boolean }[] =
 const roleStyle: Record<Account["role"], string> = {
   resident: "bg-baan-mist text-baan-muted",
   staff: "bg-[#DDF3F2] text-[#145C5A]",
+  nurse: "bg-[#E6EEFA] text-[#284B7A]",
   admin: "bg-[#FFF1E8] text-[#9E3E14]",
 };
 

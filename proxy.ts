@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 const isPrivateRoute = createRouteMatcher(["/dashboard(.*)"]);
 // Staff-only pages. Signed-in non-staff are sent to their own dashboard.
 const isStaffRoute = createRouteMatcher(["/staff(.*)"]);
+// Nurse-only pages. Signed-in non-nurses are sent to their own dashboard.
+const isNurseRoute = createRouteMatcher(["/nurse(.*)"]);
 // Admin-only pages. Signed-in non-admins are sent to their own dashboard.
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 
@@ -13,6 +15,12 @@ export default clerkMiddleware(async (auth, req) => {
   if (isStaffRoute(req)) {
     const { sessionClaims } = await auth.protect();
     if (sessionClaims?.metadata?.role !== "staff") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  }
+  if (isNurseRoute(req)) {
+    const { sessionClaims } = await auth.protect();
+    if (sessionClaims?.metadata?.role !== "nurse") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }

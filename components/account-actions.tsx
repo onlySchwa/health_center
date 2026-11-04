@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { setAccountActive, setAccountRole } from "@/lib/actions";
 import type { Account, AccountRole } from "@/lib/admin";
 
-const roleLabels: Record<AccountRole, string> = { resident: "Resident", staff: "Staff", admin: "Admin" };
+const roleLabels: Record<AccountRole, string> = { resident: "Resident", staff: "Staff", nurse: "Nurse", admin: "Admin" };
 const smallButton = "min-h-10 rounded-full px-4 text-sm font-bold disabled:opacity-60";
 
 // Role and active/deactivated controls for one account. The server re-checks every change.

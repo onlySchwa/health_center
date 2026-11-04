@@ -8,7 +8,8 @@ import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
 import { clickableNotice, NoticeArrow } from "@/components/staff-notice";
 import { getAdminCounts, getUpcomingAppointments, isAdmin } from "@/lib/admin";
 import { statusStyle, type Status } from "@/lib/appointment-options";
-import { formatApptDate } from "@/lib/appointments";
+import { formatApptDate, manilaToday } from "@/lib/appointments";
+import { getOnDuty } from "@/lib/roster";
 import AdminLoading from "./loading";
 
 export const metadata: Metadata = {
@@ -48,7 +49,11 @@ async function OverviewContent({ searchParams }: { searchParams: PageProps<"/adm
     console.error(error);
     return null;
   };
-  const [counts, upcoming] = await Promise.all([getAdminCounts().catch(fail), getUpcomingAppointments().catch(fail)]);
+  const [counts, upcoming, onDuty] = await Promise.all([
+    getAdminCounts().catch(fail),
+    getUpcomingAppointments().catch(fail),
+    getOnDuty(manilaToday()).catch(fail),
+  ]);
 
   const todayLabel = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "full" }).format(new Date());
   const stats = [
@@ -92,7 +97,7 @@ async function OverviewContent({ searchParams }: { searchParams: PageProps<"/adm
         <p className="text-[15px] text-baan-muted">{todayLabel}</p>
       </div>
 
-      {(!counts || !upcoming) && (
+      {(!counts || !upcoming || !onDuty) && (
         <p role="alert" className="rounded-xl bg-[#FFF1E8] px-5 py-4 text-center font-semibold text-[#9E3E14]">
           Some data couldn&apos;t be loaded. Please try again in a few minutes.
         </p>
@@ -105,6 +110,26 @@ async function OverviewContent({ searchParams }: { searchParams: PageProps<"/adm
             <span className="font-semibold text-baan-muted">{s.label}</span>
           </div>
         ))}
+      </section>
+
+      <section aria-labelledby="duty-h" className={`${panel} flex flex-wrap items-center gap-x-8 gap-y-3 px-7 py-5`}>
+        <div className="flex min-w-0 flex-[1_1_480px] flex-col gap-2">
+          <h2 id="duty-h" className="font-bold text-baan-navy">On duty today</h2>
+          {onDuty?.length ? (
+            <ul className="flex flex-wrap gap-2">
+              {onDuty.map((p) => (
+                <li key={p.userId} className="rounded-full bg-baan-mist px-3 py-1 text-sm font-semibold text-baan-navy">
+                  {p.name} <span className="font-normal text-baan-muted capitalize">· {p.role}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-baan-muted">{onDuty ? "No nurse or staff member is on the roster today." : "—"}</p>
+          )}
+        </div>
+        <Link href="/admin/roster" className="font-bold text-baan-teal hover:text-baan-navy">
+          {onDuty?.length ? "Manage roster" : "Assign today’s team"}
+        </Link>
       </section>
 
       <section aria-label="Appointments by status" className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
