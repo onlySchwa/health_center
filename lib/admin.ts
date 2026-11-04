@@ -23,7 +23,7 @@ async function listAllUsers() {
 // Registered residents = every Clerk account without a staff or admin role.
 const listResidentUsers = async () => (await listAllUsers()).filter((u) => !u.publicMetadata.role);
 
-export type AccountRole = "resident" | "staff" | "admin";
+export type AccountRole = "resident" | "staff" | "nurse" | "admin";
 
 export type Account = {
   id: string;
@@ -42,7 +42,8 @@ export async function getAccounts(): Promise<Account[]> {
   return users
     .map((u) => {
       const meta = u.publicMetadata as { role?: unknown; services?: unknown };
-      const role: AccountRole = meta.role === "admin" || meta.role === "staff" ? meta.role : "resident";
+      const role: AccountRole =
+        meta.role === "admin" || meta.role === "staff" || meta.role === "nurse" ? meta.role : "resident";
       return {
         id: u.id,
         name: u.fullName?.trim() || u.primaryEmailAddress?.emailAddress || "Unnamed account",
@@ -285,17 +286,19 @@ export async function getAdminAppointment(id: number) {
 export type ActivityEntry = {
   id: number;
   action:
-    | "created" | "status" | "edited" | "archived" | "restored" | "deleted"
-    | "role_changed" | "deactivated" | "reactivated"
-    | "service_added" | "service_updated"
-    | "settings_updated"
-    | "email_retried";
+  | "created" | "status" | "edited" | "archived" | "restored" | "deleted"
+  | "role_changed" | "deactivated" | "reactivated"
+  | "service_added" | "service_updated"
+  | "settings_updated"
+  | "email_retried"
+  | "duty_assigned" | "duty_removed";
   old_status: Status | null;
   new_status: Status | null;
   // "edited": { field: { from, to } }. "deleted": a snapshot of the appointment's details.
   // "role_changed": { from: { role, services }, to: { role, services } }.
   // "service_added": { service, active }. "service_updated": { service, changes: { field: { from, to } } }.
   // "settings_updated": { changes: { field: { from, to } } }.
+  // "duty_assigned": { date, role }. "duty_removed": { date }.
   // "email_retried": { result: "sent" | "failed" | "no_email" | "skipped", email_for: "confirmed" | "rejected" | null }.
   details: Record<string, unknown> | null;
   actor_role: "resident" | "staff" | "admin" | "system";
@@ -308,7 +311,8 @@ export type ActivityEntry = {
 };
 
 export const isAccountAction = (action: ActivityEntry["action"]) =>
-  action === "role_changed" || action === "deactivated" || action === "reactivated";
+  action === "role_changed" || action === "deactivated" || action === "reactivated" ||
+  action === "duty_assigned" || action === "duty_removed";
 
 const auditColumns =
   "id, action, old_status, new_status, details, actor_id, actor_role, created_at, appointment_ref, target_user_id, appointment:appointments(resident_name, service)";
@@ -355,6 +359,7 @@ export const auditActionGroups = {
   emails: { label: "Email retries", actions: ["email_retried"] },
   deleted: { label: "Deleted", actions: ["deleted"] },
   accounts: { label: "Account changes", actions: ["role_changed", "deactivated", "reactivated"] },
+  roster: { label: "Duty roster", actions: ["duty_assigned", "duty_removed"] },
   services: { label: "Service changes", actions: ["service_added", "service_updated"] },
   settings: { label: "Settings changes", actions: ["settings_updated"] },
 } satisfies Record<string, { label: string; actions: ActivityEntry["action"][] }>;

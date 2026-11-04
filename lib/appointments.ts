@@ -1,6 +1,7 @@
 import "server-only";
 import { auth } from "@clerk/nextjs/server";
 import type { Status } from "@/lib/appointment-options";
+import { carriedOverColumns, type IntakeDefaults } from "@/lib/health-intake";
 import { createSupabase } from "@/lib/supabase";
 
 export function manilaToday() {
@@ -19,7 +20,7 @@ export async function getStaffAccess() {
   const { userId, sessionClaims } = await auth();
   const meta = sessionClaims?.metadata;
   if (!userId || meta?.role !== "staff") return null;
-  return { services: Array.isArray(meta.services) ? meta.services : [] };
+  return { userId, services: Array.isArray(meta.services) ? meta.services : [] };
 }
 
 export type ResidentAppointment = {
@@ -42,6 +43,21 @@ export async function getMyAppointments(): Promise<ResidentAppointment[]> {
     .order("appt_date", { ascending: false });
   if (error) throw new Error(`Could not load appointments: ${error.message}`);
   return data;
+}
+
+// The background details from the resident's latest health form, to fill in their next one.
+export async function getMyLastIntake(): Promise<IntakeDefaults | null> {
+  const { userId } = await auth();
+  if (!userId) return null;
+  const { data, error } = await createSupabase()
+    .from("health_intakes")
+    .select(carriedOverColumns)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Could not load the last health form: ${error.message}`);
+  return data as IntakeDefaults | null;
 }
 
 // Only the fields staff need for their duties (contact details included): no account ID.

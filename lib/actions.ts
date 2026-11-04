@@ -7,6 +7,7 @@ import { isAdmin, type AccountRole } from "@/lib/admin";
 import { sendAppointmentEmail, sendTestEmail } from "@/lib/appointment-email";
 import { statusStyle, timeSlots } from "@/lib/appointment-options";
 import { getStaffAccess, manilaToday } from "@/lib/appointments";
+import { readIntake } from "@/lib/health-intake";
 import { getServices, SERVICES_TAG } from "@/lib/services";
 import { getSettings, SETTINGS_TAG } from "@/lib/settings";
 import { createSupabase } from "@/lib/supabase";
@@ -56,6 +57,8 @@ export async function requestAppointment(input: Record<string, unknown>): Promis
   const { appointment } = result;
   if (!appointment.email) return { ok: false, error: "Please enter your email address." };
   if (!appointment.address) return { ok: false, error: "Please enter your address." };
+  const health = readIntake(input, manilaToday());
+  if ("error" in health) return { ok: false, error: health.error };
 
   // Service days and times, same-day, days ahead, closed dates and full slots: one database function
   // decides (see 0012_settings.sql) and the insert policy runs it again. Admins can set any date when editing.
@@ -68,7 +71,19 @@ export async function requestAppointment(input: Record<string, unknown>): Promis
   if (ruleCheckError) console.error("booking_rule_error failed:", ruleCheckError.message);
   if (ruleError) return { ok: false, error: ruleError };
 
-  const { data, error } = await supabase.from("appointments").insert(appointment).select("ref").single();
+  // The request and its health form are saved together (request_appointment, 0017_nurse_intake_roster.sql).
+  const { data: ref, error } = await supabase.rpc("request_appointment", {
+    p_first_name: appointment.first_name,
+    p_last_name: appointment.last_name,
+    p_email: appointment.email,
+    p_phone: appointment.phone,
+    p_address: appointment.address,
+    p_service: appointment.service,
+    p_appt_date: appointment.appt_date,
+    p_time_slot: appointment.time_slot,
+    p_note: appointment.note,
+    p_intake: health.intake,
+  });
   if (error) {
     console.error("requestAppointment failed:", error.message);
     return { ok: false, error: "We couldn't save your request. Please try again." };
@@ -80,7 +95,7 @@ export async function requestAppointment(input: Record<string, unknown>): Promis
   const details = {
     firstName: appointment.first_name,
     fullName: `${appointment.first_name} ${appointment.last_name}`,
-    ref: data.ref,
+    ref,
     service: appointment.service,
     apptDate: appointment.appt_date,
     timeSlot: appointment.time_slot,
@@ -91,12 +106,12 @@ export async function requestAppointment(input: Record<string, unknown>): Promis
   after(async () => {
     if (settings.emailOnRequest) {
       const sent = await sendAppointmentEmail("received", { to: email, ...details });
-      if (!sent.ok) console.error(`Request-received email for ${data.ref} not sent:`, sent.error);
+      if (!sent.ok) console.error(`Request-received email for ${ref} not sent:`, sent.error);
     }
     if (settings.alertNewRequests) {
       for (const to of await adminEmails()) {
         const sent = await sendAppointmentEmail("alert", { to, residentEmail: email, ...details });
-        if (!sent.ok) console.error(`New-request alert for ${data.ref} to an admin not sent:`, sent.error);
+        if (!sent.ok) console.error(`New-request alert for ${ref} to an admin not sent:`, sent.error);
       }
     }
   });
@@ -376,7 +391,7 @@ async function logAccountChange(userId: string, action: "role_changed" | "deacti
   return !error;
 }
 
-const roles: AccountRole[] = ["resident", "staff", "admin"];
+const roles: AccountRole[] = ["resident", "staff", "nurse", "admin"];
 
 export async function setAccountRole(userId: string, role: unknown, staffServices: unknown): Promise<ActionResult> {
   const denied = await checkAccountChange(userId);
@@ -425,6 +440,41 @@ export async function setAccountActive(userId: string, active: boolean): Promise
   return logged
     ? { ok: true }
     : { ok: false, error: `The account was ${active ? "reactivated" : "deactivated"}, but it couldn't be recorded in the audit log.` };
+}
+
+// Puts a nurse or staff member on duty for a day, or takes them off. Their role is read from Clerk
+// here; the database function checks the admin and writes the audit entry (0017_nurse_intake_roster.sql).
+export async function setDuty(date: string, userId: string, onDuty: boolean): Promise<ActionResult> {
+  if (!(await isAdmin()) || typeof userId !== "string" || !userId || typeof onDuty !== "boolean") {
+    return { ok: false, error: "Not allowed." };
+  }
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) {
+    return { ok: false, error: "Please choose a date." };
+  }
+  if (date < manilaToday()) return { ok: false, error: "Past days can't be changed." };
+
+  let role: unknown;
+  try {
+    role = (await (await clerkClient()).users.getUser(userId)).publicMetadata.role;
+  } catch (error) {
+    console.error("setDuty couldn't read the account:", error);
+    return { ok: false, error: "This account couldn't be found." };
+  }
+  if (onDuty && role !== "nurse" && role !== "staff") {
+    return { ok: false, error: "Only nurses and staff can be put on duty." };
+  }
+
+  const { error } = await createSupabase().rpc("admin_set_duty", {
+    p_date: date,
+    p_user_id: userId,
+    p_role: onDuty ? role : null,
+  });
+  if (error) {
+    console.error("setDuty failed:", error.message);
+    return { ok: false, error: "The roster couldn't be updated. Please try again." };
+  }
+  refresh();
+  return { ok: true };
 }
 
 // Adds a service, or updates one's description, requirements, schedule and active flag.

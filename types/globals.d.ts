@@ -5,7 +5,7 @@ declare global {
   // { "metadata": "{{user.public_metadata}}" }
   interface CustomJwtSessionClaims {
     metadata?: {
-      role?: "staff" | "admin";
+      role?: "staff" | "nurse" | "admin";
       services?: string[];
     };
   }

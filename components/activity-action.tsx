@@ -1,5 +1,6 @@
 import type { ActivityEntry } from "@/lib/admin";
 import { statusStyle } from "@/lib/appointment-options";
+import { longDate } from "@/lib/reports";
 
 // How one audit-log entry reads, shared by the audit log and an appointment's status history.
 const fieldLabels: Record<string, string> = {
@@ -143,6 +144,16 @@ export function ActivityAction({ e }: { e: ActivityEntry }) {
           </span>
           <span className={`text-sm font-semibold ${outcome.tone}`}>Result: {outcome.text}</span>
         </div>
+      );
+    }
+    case "duty_assigned":
+    case "duty_removed": {
+      const day = typeof e.details?.date === "string" ? longDate(e.details.date) : "";
+      return (
+        <span className="font-semibold">
+          {e.action === "duty_assigned" ? `Put on duty${e.details?.role ? ` as ${e.details.role}` : ""}` : "Taken off duty"}
+          {day && ` for ${day}`}
+        </span>
       );
     }
     case "settings_updated":

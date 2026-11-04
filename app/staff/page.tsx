@@ -8,6 +8,7 @@ import { AppointmentsTableSkeleton } from "@/components/page-skeletons";
 import { NoticeItem } from "@/components/staff-notice";
 import { statusStyle, timeSlots } from "@/lib/appointment-options";
 import { getStaffAccess, getStaffCounts, manilaToday } from "@/lib/appointments";
+import { formatDutyDay, getDutyDays } from "@/lib/roster";
 import { getSettings } from "@/lib/settings";
 import { findOverlaps, getStaffNotices, getStaffSchedule } from "@/lib/staff";
 import StaffLoading from "./loading";
@@ -51,7 +52,7 @@ async function DashboardContent() {
     console.error(error);
     return null;
   };
-  const settings = await getSettings().catch(fail);
+  const [settings, dutyDays] = await Promise.all([getSettings().catch(fail), getDutyDays(staff.userId, today).catch(fail)]);
   const [counts, todayRows, notices] = hasServices
     ? await Promise.all([
         getStaffCounts(staff.services).catch(fail),
@@ -90,6 +91,13 @@ async function DashboardContent() {
             <span className="text-sm font-semibold text-baan-orange">No services yet. Ask an administrator to assign them.</span>
           )}
         </div>
+        {dutyDays && (
+          <p className="text-sm text-baan-muted">
+            <span className="font-semibold text-baan-navy">{dutyDays[0] === today ? "You’re on duty today." : "You’re not on the roster today."}</span>
+            {dutyDays.some((d) => d !== today) &&
+              ` Next: ${dutyDays.filter((d) => d !== today).map(formatDutyDay).join(", ")}`}
+          </p>
+        )}
       </div>
 
       {hasServices && (!counts || !todayRows || !notices) && (

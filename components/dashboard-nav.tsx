@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CalendarDays,
   ChartColumn,
+  ClipboardList,
   FileText,
   HeartPulse,
   House,
@@ -28,6 +29,7 @@ const adminLinks: NavLink[] = [
   { href: "/admin/residents", label: "Residents", icon: Users },
   { href: "/admin/services", label: "Health services", icon: HeartPulse },
   { href: "/admin/accounts", label: "Staff & accounts", icon: ShieldCheck },
+  { href: "/admin/roster", label: "Duty roster", icon: ClipboardList },
   { href: "/admin/reports", label: "Reports", icon: ChartColumn },
   { href: "/admin/audit", label: "Audit log", icon: FileText },
   { href: "/admin/settings", label: "Settings", icon: Settings },
@@ -44,9 +46,12 @@ const staffLinks: NavLink[] = [
   { href: "/staff/profile", label: "My profile", icon: UserRound },
 ];
 
+const nurseLinks: NavLink[] = [{ href: "/nurse", label: "Patients", icon: HeartPulse }];
+
 const navs = {
   admin: { title: "Admin dashboard", label: "Admin sections", links: adminLinks },
   staff: { title: "Staff dashboard", label: "Staff sections", links: staffLinks },
+  nurse: { title: "Nurse dashboard", label: "Nurse sections", links: nurseLinks },
 };
 
 const item = "flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] whitespace-nowrap";

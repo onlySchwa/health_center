@@ -6,7 +6,8 @@ import { MinDelay } from "@/components/min-delay";
 import { ResidentDashboardSkeleton } from "@/components/page-skeletons";
 import { ResidentDashboard } from "@/components/resident-dashboard";
 import { isAdmin } from "@/lib/admin";
-import { formatApptDate, getMyAppointments, getStaffAccess, manilaToday } from "@/lib/appointments";
+import { formatApptDate, getMyAppointments, getMyLastIntake, getStaffAccess, manilaToday } from "@/lib/appointments";
+import { getNurseId } from "@/lib/nurse";
 import { activeServices, getServices } from "@/lib/services";
 import { getBookingRules } from "@/lib/settings";
 import DashboardLoading from "./loading";
@@ -35,19 +36,25 @@ async function DashboardContent() {
   if (!userId) return redirectToSignIn();
 
   // A database problem shouldn't take down the whole page: log it and show a notice instead.
-  const [user, rows, staff, admin, services, rules] = await Promise.all([
+  const [user, rows, staff, nurse, admin, services, rules, lastIntake] = await Promise.all([
     currentUser(),
     getMyAppointments().catch((error) => {
       console.error(error);
       return null;
     }),
     getStaffAccess(),
+    getNurseId(),
     isAdmin(),
     getServices().then(activeServices, (error) => {
       console.error(error);
       return [];
     }),
     getBookingRules(),
+    // Only fills in the form, so the page still works without it.
+    getMyLastIntake().catch((error) => {
+      console.error(error);
+      return null;
+    }),
   ]);
   await connection(); // "today" depends on the current time, so compute it per request
   const today = manilaToday();
@@ -67,9 +74,11 @@ async function DashboardContent() {
       appointments={appointments}
       loadFailed={rows === null}
       isStaff={staff !== null}
+      isNurse={nurse !== null}
       isAdmin={admin}
       services={services.map(({ name, requirements, days, timeSlots }) => ({ name, requirements, days, timeSlots }))}
       rules={rules}
+      lastIntake={lastIntake}
       profile={{
         firstName: user?.firstName ?? "",
         lastName: user?.lastName ?? "",

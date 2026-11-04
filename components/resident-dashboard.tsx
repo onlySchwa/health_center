@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { BookingForm, type BookingService } from "@/components/booking-form";
 import { cancelAppointment } from "@/lib/actions";
 import { statusStyle, type Status } from "@/lib/appointment-options";
+import type { IntakeDefaults } from "@/lib/health-intake";
 import type { BookingRules } from "@/lib/settings";
 
 export type DashboardAppointment = {
@@ -29,12 +30,24 @@ type ResidentDashboardProps = {
   appointments: DashboardAppointment[];
   loadFailed: boolean;
   isStaff: boolean;
+  isNurse: boolean;
   isAdmin: boolean;
   services: BookingService[];
   rules: BookingRules;
+  lastIntake: IntakeDefaults | null;
 };
 
-export function ResidentDashboard({ profile, appointments, loadFailed, isStaff, isAdmin, services, rules }: ResidentDashboardProps) {
+export function ResidentDashboard({
+  profile,
+  appointments,
+  loadFailed,
+  isStaff,
+  isNurse,
+  isAdmin,
+  services,
+  rules,
+  lastIntake,
+}: ResidentDashboardProps) {
   const { openUserProfile } = useClerk();
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -78,6 +91,14 @@ export function ResidentDashboard({ profile, appointments, loadFailed, isStaff, 
               className="inline-flex min-h-14 items-center rounded-full border-2 border-white/80 px-7 text-[17px] font-bold text-white hover:bg-white/10"
             >
               Staff dashboard
+            </Link>
+          )}
+          {isNurse && (
+            <Link
+              href="/nurse"
+              className="inline-flex min-h-14 items-center rounded-full border-2 border-white/80 px-7 text-[17px] font-bold text-white hover:bg-white/10"
+            >
+              Nurse dashboard
             </Link>
           )}
           {isAdmin && (
@@ -235,7 +256,13 @@ export function ResidentDashboard({ profile, appointments, loadFailed, isStaff, 
         <BookingForm
           services={services}
           rules={rules}
-          defaults={{ firstName: profile.firstName, lastName: profile.lastName, email: profile.email, phone: profile.phone }}
+          defaults={{
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            email: profile.email,
+            phone: profile.phone,
+            intake: lastIntake,
+          }}
         />
       </section>
     </div>
